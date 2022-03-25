@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
     <sys_script_include action="INSERT_OR_UPDATE">
-        <access>package_private</access>
+        <access>public</access>
         <active>true</active>
         <api_name>x_snc_graph.BCRCMDBExplorerHelper</api_name>
-        <caller_access/>
+        <caller_access>1</caller_access>
         <client_callable>true</client_callable>
         <description>https://codesandbox.io/s/react-playground-forked-5di0k </description>
         <name>BCRCMDBExplorerHelper</name>
-        <script><![CDATA[var BCRCMDBExplorerHelperHelper = Class.create();
-BCRCMDBExplorerHelperHelper.prototype = Object.extendsObject(global.AbstractAjaxProcessor, {
+        <script><![CDATA[var BCRCMDBExplorerHelper = Class.create();
+BCRCMDBExplorerHelper.prototype = Object.extendsObject(global.AbstractAjaxProcessor, {
 	
 /*	maxCIsNumber: 1000,
 	data = {},
@@ -18,18 +18,21 @@ BCRCMDBExplorerHelperHelper.prototype = Object.extendsObject(global.AbstractAjax
         var iconsImages = {};
         var grIconList = new GlideRecord("ngbsm_ci_type_icon");
         grIconList.query();
-        while (grIconList.next()) {
-			  var grIcon = new GlideRecord("ngbsm_ci_icons");
-			  if (grIcon.get(grIconList.getValue("icon"))) {
-				  iconsImages[grIconList.getValue("ci_type")] = grIcon.getValue("url");
-			  }
-        }
+        while (grIconList.next())
+		{
+			var grIcon = new GlideRecord("ngbsm_ci_icons");
+			if (grIcon.get(grIconList.getValue("icon")))
+			{
+				iconsImages[grIconList.getValue("ci_type")] = grIcon.getValue("url");
+			}
+		}
         var json = new JSON();
-        //gs.log("returning " + json.encode(iconsImages));
+        //Debug("returning " + json.encode(iconsImages));
 		return json.encode(iconsImages);
     },
 	
-	getCI: function() {
+	getCI: function()
+	{
 		this.data = {};
 		this.data.items = [];
 		this.data.relations = [];
@@ -40,15 +43,16 @@ BCRCMDBExplorerHelperHelper.prototype = Object.extendsObject(global.AbstractAjax
 		this.RelationIDs = {};
 		this.security = 0;
 
-		x_snc_devtools.Debug('BCRCMDBExplorerHelperHelper.getCI');
-		gs.log("called");
+		Debug('BCRCMDBExplorerHelper.getCI');
+		//Debug("called");
 		var ciIDList = (this.getParameter('sysparm_sys_id')).split(",");
 		var levels = this.getParameter('sysparm_levels');
 		// attributesMode 
 		// minimal : name + display label
 		// full : aall attributes
 		this.attributesMode = this.getParameter('sysparm_attributes_mode');
-		if (this.attributesMode == null) {
+		if (this.attributesMode == null)
+		{
 			this.attributesMode = "minimal";
 		}
 		this.includeReferences = (this.getParameter('sysparm_attributes_mode') == "true");
@@ -56,31 +60,63 @@ BCRCMDBExplorerHelperHelper.prototype = Object.extendsObject(global.AbstractAjax
 			this.includeReferences = false;
 		}*/
 
-		for (var sysID in ciIDList) {
+		for (var sysID in ciIDList)
+		{
+			Debug('Processing sys_id: '+ sysID);
 			this._addToCIList(ciIDList[sysID], levels);
 		}
 		
-		
-		var json = new JSON();
-        gs.log("returning " + json.encode(this.data));
-		if (this.security > 9000) {
+		Debug('after iterating over CIs');
+
+		//var json = new JSON();
+	/*
+		if (this.security > 9000)
+		{
+			Debug('too many CIs');
 			return "security reached";
 		}
-		return json.encode(this.data);
+*/
+		//var strResult = '';
+		//var strResult = JSON.encode(this.data);
+		
+		function EncodeJson(vData)
+		{
+			var strResult = '';
+			try
+			{
+				strResult = JSON.stringify(vData);
+			}
+			catch (e)
+			{
+				Debug(x_snc_devtools.RenderValue(e));
+				return false;
+			}
+			return strResult;
+		}
+	
+		x_snc_devtools.Debug(x_snc_devtools.RenderValue(this.data));
+		
+		var strResult = EncodeJson(this.data);
+		Debug('Result: '+strResult);
+		return strResult;
 	},
 
-	_addToCIList: function(ciID, levels) {
+	_addToCIList: function(ciID, levels)
+	{
 		var grCI = new GlideRecord("cmdb_ci");
-		if (levels > 0) {
-				if (grCI.get(ciID)) {
-				gs.log("found CI");
+		if (levels > 0)
+		{
+			if (grCI.get(ciID))
+			{
+				Debug("found CI");
 				this._addToCIData(grCI);
 
 				var grRelCI = new GlideRecord("cmdb_rel_ci");
 				grRelCI.addQuery("child", ciID);
 				grRelCI.addNotNullQuery("parent");
 				grRelCI.query();
-				while (grRelCI.next() && this.security++ < 10000) {
+				while (grRelCI.next() && this.security++ < 10000)
+				{
 					this._addToCIDataRelation(grRelCI, "child", levels);
 				}
 		
@@ -88,20 +124,21 @@ BCRCMDBExplorerHelperHelper.prototype = Object.extendsObject(global.AbstractAjax
 				grRelCI2.addQuery("parent", ciID);
 				grRelCI2.addNotNullQuery("child");
 				grRelCI2.query();
-				while (grRelCI2.next() && this.security++ < 10000) {
+				while (grRelCI2.next() && this.security++ < 10000)
+				{
 					this._addToCIDataRelation(grRelCI2, "parent", levels);
 				}
 
 				if (this.includeReferences) {
-					gs.log("saerching ref for  " + grCI.getValue("sys_id"));
+					Debug("saerching ref for  " + grCI.getValue("sys_id"));
 
 					var references = this.findIncomingReferences(grCI.getValue("sys_id"), grCI.getValue("sys_class_name"));
-					gs.log("BCR found refs : " + references);
+					Debug("BCR found refs : " + references);
 					for (var referenceSourceID in references) {
-						gs.log("BCR found ref : " + referenceSourceID);
+						Debug("BCR found ref : " + referenceSourceID);
 						var grCI2 = new GlideRecord("cmdb_ci");
 						if (grCI2.get(referenceSourceID)) {
-							gs.log("BCR found ref CI : " + referenceSourceID);
+							Debug("BCR found ref CI : " + referenceSourceID);
 							var recordRef = {};
 							recordRef["parent"] = this._getCIID(referenceSourceID);
 							recordRef["parent_id"] = referenceSourceID;
@@ -206,7 +243,7 @@ BCRCMDBExplorerHelperHelper.prototype = Object.extendsObject(global.AbstractAjax
 
 
 	findIncomingReferences: function(refRecordID, table_name) {
-		gs.log("hello");
+		Debug("hello");
 		var result = [];
 		var refTable = new TableUtils(table_name).getTables();
 		gs.include("j2js");
@@ -241,14 +278,14 @@ BCRCMDBExplorerHelperHelper.prototype = Object.extendsObject(global.AbstractAjax
 				} else {
 					rec.addQuery(dict.element, refRecordID);
 				}
-				//gs.log("requesting " + dict.element + " on " + tblName);
+				//Debug("requesting " + dict.element + " on " + tblName);
 				rec.query();
 				if (rec.getRowCount() == 1) {
-					gs.log(' record found');
+					Debug(' record found');
 				}
 				if (rec.getRowCount() > 0) {
 					//Display table/column info
-					gs.log('Table: ' + tblName + 'Column : ' + dict.element + '[' + dict.internal_type + ']' + ' href ' + dict.name + ' ' + rec.getRowCount());
+					Debug('Table: ' + tblName + 'Column : ' + dict.element + '[' + dict.internal_type + ']' + ' href ' + dict.name + ' ' + rec.getRowCount());
 				}
 				while (rec.next()) {
 					result[rec.getValue("sys_id")] = rec.getValue("sys_id");
@@ -259,19 +296,19 @@ BCRCMDBExplorerHelperHelper.prototype = Object.extendsObject(global.AbstractAjax
 	},
 
 
-    type: 'BCRCMDBExplorerHelperHelper'
+    type: 'BCRCMDBExplorerHelper'
 });]]></script>
         <sys_class_name>sys_script_include</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2022-03-25 13:44:11</sys_created_on>
         <sys_id>3f5c9204db260510bcced03cd3961933</sys_id>
-        <sys_mod_count>3</sys_mod_count>
+        <sys_mod_count>29</sys_mod_count>
         <sys_name>BCRCMDBExplorerHelper</sys_name>
         <sys_package display_value="Graph" source="x_snc_graph">e34c9ec0db260510bcced03cd39619ef</sys_package>
         <sys_policy>read</sys_policy>
         <sys_scope display_value="Graph">e34c9ec0db260510bcced03cd39619ef</sys_scope>
         <sys_update_name>sys_script_include_3f5c9204db260510bcced03cd3961933</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2022-03-25 14:19:41</sys_updated_on>
+        <sys_updated_on>2022-03-25 17:01:31</sys_updated_on>
     </sys_script_include>
 </record_update>

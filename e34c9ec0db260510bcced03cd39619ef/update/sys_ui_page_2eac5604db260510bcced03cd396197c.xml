@@ -864,7 +864,9 @@ function reload_with_page_info() {
 
 // Icon Managment
 iconsImages = null;
-function iconsLoad() {
+function iconsLoad()
+{
+	return false;
   var ga = new GlideAjax('x_snc_graph.BCRCMDBExplorerHelper') ;
 	ga.addParam('sysparm_name', "getIconsList");
   ga.addParam('sysparm_sys_id', "13");
@@ -886,20 +888,20 @@ function ItemDisplayIcon(className) {
   return '<img src="./images/app.ngbsm/generic.svg" height="20" width="20"></img>';
 }
 
-function loadtestpayLoad0() {
-  console.log("load ");
+function loadtestpayLoad0()
+{
+  console.log("load loadtestpayLoad0");
   resetData();
   var ga = new GlideAjax('x_snc_graph.BCRCMDBExplorerHelper');
 	ga.addParam('sysparm_name', "getCI");
   //ga.addParam('sysparm_sys_id', "21842196db5fb4507949ff1a6896193d,6d842196db5fb4507949ff1a6896193e,29842196db5fb4507949ff1a68961929");
   ga.addParam('sysparm_sys_id', "1067bbdd7f301200bee45f19befa9162");
-
 	ga.addParam('sysparm_levels', "3");
   ga.getXML(loadtestpayLoad1Async);
 }
 
 function loadtestpayLoad1() {
-  console.log("load ");
+  console.log("load loadtestpayLoad1");
   resetData();
   var ga = new GlideAjax('x_snc_graph.BCRCMDBExplorerHelper') ;
 	ga.addParam('sysparm_name', "getCI");
@@ -908,12 +910,22 @@ function loadtestpayLoad1() {
   ga.getXML(loadtestpayLoad1Async);
 }
 
-function loadtestpayLoad1Async(response) {
+function loadtestpayLoad1Async(response)
+{
+	console.log('loadtestpayLoad1Async: Getting the response!');
   var answer = response.responseXML.documentElement.getAttribute("answer");
-  var payload = answer.evalJSON();
-  console.log('got ' + payload);
-  document.getElementById("inputarea").value = answer;
-  process();
+	if (answer != null)
+	{
+		var payload = answer.evalJSON();
+		console.log('got ' + payload);
+		document.getElementById("inputarea").value = answer;
+		process();		 
+	}
+	else
+	{
+		console.log('answer is empty!');
+	}
+
 }
  
 function loadtestpayLoad2() {
@@ -2778,13 +2790,13 @@ z-index: 300;
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2022-03-25 13:45:17</sys_created_on>
         <sys_id>2eac5604db260510bcced03cd396197c</sys_id>
-        <sys_mod_count>2</sys_mod_count>
+        <sys_mod_count>6</sys_mod_count>
         <sys_name>BCRCMDBExplorer</sys_name>
         <sys_package display_value="Graph" source="x_snc_graph">e34c9ec0db260510bcced03cd39619ef</sys_package>
         <sys_policy/>
         <sys_scope display_value="Graph">e34c9ec0db260510bcced03cd39619ef</sys_scope>
         <sys_update_name>sys_ui_page_2eac5604db260510bcced03cd396197c</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2022-03-25 13:52:16</sys_updated_on>
+        <sys_updated_on>2022-03-25 16:39:36</sys_updated_on>
     </sys_ui_page>
 </record_update>
