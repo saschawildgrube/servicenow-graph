@@ -1,0 +1,2790 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_ui_page">
+    <sys_ui_page action="INSERT_OR_UPDATE">
+        <category>general</category>
+        <client_script><![CDATA[var data = {};
+var CIList = {};
+
+
+var options = {
+evtType: "cxttap",
+menuItems: [
+  {
+    id: "remove",
+    content: "remove this item",
+    //tooltipText: "remove",
+    selector: "node, edge",
+    onClickFunction: function (event) { 
+      var target = event.target || event.cyTarget;
+      removed = target.remove();
+    },
+    hasTrailingDivider: true
+  },
+  {
+    id: "remove_class",
+    content: "Hide this type of CI",
+    //tooltipText: "remove",
+    selector: "node, edge",
+    onClickFunction: function (event) { 
+      selectClass(event.target.data().ci_type);
+    },
+    hasTrailingDivider: true
+  },
+  {
+    id: "view_form",
+    content: "View CI in Form",
+    //tooltipText: "View Form",
+    selector: "node",
+    onClickFunction: function (event) { 
+      window.open("cmdb_ci.do?sys_id=" + event.target.data().sys_id, '_blank'); },
+    hasTrailingDivider: true
+  },
+  {
+    id: "view_rel_form",
+    content: "View Relation in Form",
+    //tooltipText: "View Form",
+    selector: "edge",
+    onClickFunction: function (event) { 
+      window.open("cmdb_rel_ci.do?sys_id=" + event.target.data().sys_id, '_blank'); },
+    hasTrailingDivider: true
+  },
+  {
+    id: "run_layout_from",
+    content: "Run Layout From here",
+    selector: "node",
+    onClickFunction: function (event) { alert("not (yet) implemented"); },
+    hasTrailingDivider: true
+  }
+],
+menuItemClasses: ["custom-menu-item", "custom-menu-item:hover"],
+contextMenuClasses: ["custom-context-menu"]
+};
+
+var cy = cytoscape({
+  container: document.getElementById("cy"),
+
+  ready: function () {
+    var instance = this.contextMenus(options);
+
+    var api = this.expandCollapse({
+      layoutBy: {
+        name: "dagre",
+        animate: "end",
+        randomize: false,
+        fit: false,        
+      },
+
+      fisheye: false,
+      animate: true,
+      undoable: false,
+      cueEnabled: true,
+      expandCollapseCuePosition: "top-left",
+      expandCollapseCueSize: 16,
+      expandCollapseCueLineSize: 24,
+      expandCueImage: "./imgs/ic_expand_more.svg",
+      collapseCueImage: "./imgs/ic_expand_less.svg",
+      expandCollapseCueSensitivity: 1,
+      edgeTypeInfo: "edgeType",
+      groupEdgesOfSameTypeOnCollapse: false,
+      allowNestedEdgeCollapse: true,
+      zIndex: 999
+    });
+
+    document
+      .getElementById("collapseAll")
+      .addEventListener("click", function () {
+        api.collapseAll();
+      });
+
+    document.getElementById("expandAll").addEventListener("click", function () {
+      api.expandAll();
+    });
+
+    document
+      .getElementById("adminView")
+      .addEventListener("click", function () {});
+    document
+      .getElementById("lifecycleView")
+      .addEventListener("click", function () {});
+    document
+      .getElementById("usageView")
+      .addEventListener("click", function () {});
+  },
+
+  style: [
+    //CORE
+    {
+      selector: "core",
+      css: {
+        "active-bg-size": 0 //The size of the active background indicator.
+      }
+    },
+
+    //NODE
+    {
+      selector: "node",
+      css: {
+        width: "36px",
+        height: "36px",
+        "background-opacity": "1"
+      }
+    },
+    //GROUP
+    {
+      selector: "node.cy-expand-collapse-collapsed-node",
+      css: {
+        width: "56px",
+        height: "56px",
+        "background-opacity": "0",
+      }
+    },
+    {
+      selector: "$node > node",
+      css: {
+        "background-color": "#fff",
+        "background-opacity": "1",
+        "border-width": "1px",
+        "border-color": "#dcdcdc",
+
+        //LABEL
+        //label: "data(name)",
+        color: "#000",
+        shape: "rectangle",
+        "text-opacity": "0.56",
+        "font-size": "10px",
+        "text-wrap": "none",
+        "text-max-width": "150px",
+        "padding-top": "16px",
+        "padding-left": "16px",
+        "padding-bottom": "16px",
+        "padding-right": "16px"
+      }
+    },
+    {
+      selector: ":parent",
+      css: {
+        "text-valign": "top",
+        "text-halign": "center"
+      }
+    },
+    //EDGE
+    {
+      selector: "edge",
+      style: {
+        width: 1,
+        "line-color": "#b8b8b8",
+        "curve-style": "bezier",
+        'target-arrow-shape': 'triangle',
+
+        //LABEL
+        //label: "data(label)",
+        "font-size": "8px",
+
+      }
+    },
+    {
+      selector: "edge.hover",
+      style: {
+        width: 2,
+        "line-color": "#239df9",
+        label: "data(label)",
+        "font-size": "7px"
+      }
+    },
+    {
+      selector: "edge:selected",
+      style: {
+        width: 1,
+        "line-color": "#239df9"
+      }
+    }
+  ],
+
+  layout: {
+    name: "dagre",
+    padding: 24,
+    spacingFactor: 1.5
+  },
+
+  elements: data,
+  zoomingEnabled: true,
+  userZoomingEnabled: true,
+  autoungrabify: false
+});
+
+
+//NODE EVENTS
+cy.on("mouseover", "node", function (e) {
+  e.target.addClass("hover");
+});
+cy.on("mouseout", "node", function (e) {
+  e.target.removeClass("hover");
+});
+
+cy.on("mousedown", "node", function (e) {
+  e.target.addClass("hover");
+});
+cy.on("click", "node", function (e) {
+  console.log("clicked:" + this.id());
+});
+
+//EDGES EVENTS
+cy.on("mouseover", "edge", function (e) {
+  e.target.addClass("hover");
+});
+cy.on("mouseout", "edge", function (e) {
+  e.target.removeClass("hover");
+});
+
+
+  cy.nodeHtmlLabel([
+    {
+      query: ".groupIcon",
+      halign: "center",
+      valign: "center",
+      halignBox: "center",
+      valignBox: "center",
+      tpl: function (data) {
+        var collapsedChildren = data.collapsedChildren? "show" : "hide";
+        return '<div class="group ' + collapsedChildren + '">\
+                  <span class="group-graphic alarmSeverity-' + data.alarmSeverity + '">\
+                    <i class="icon icon-group"></i>\
+                    <span class="overlay"></span>\
+                  </span>\
+                  <span class="group-label">' + data.name + '</span>\
+                </div>';
+      }
+    },
+    {
+      query: ".groupIcon.hover",
+      halign: "center",
+      valign: "center",
+      halignBox: "center",
+      valignBox: "center",
+      tpl: function (data) {
+        var collapsedChildren = data.collapsedChildren? "show" : "hide";
+        return '<div class="group ' + collapsedChildren + '">\
+                  <span class="group-graphic hover alarmSeverity-' + data.alarmSeverity + '">\
+                    <i class="icon icon-group"></i>\
+                    <span class="overlay"></span>\
+                  </span>\
+                  <span class="group-label">' + data.name + '</span>\
+                </div>';
+      }
+    },
+    {
+      query: ".groupIcon:selected",
+      halign: "center",
+      valign: "center",
+      halignBox: "center",
+      valignBox: "center",
+      tpl: function (data) {
+        var collapsedChildren = data.collapsedChildren? "show" : "hide";
+        return '<div class="group ' + collapsedChildren + '">\
+                  <span class="group-graphic selected alarmSeverity-' + data.alarmSeverity + '">\
+                    <i class="icon icon-group"></i>\
+                    <span class="overlay"></span>\
+                  </span>\
+                  <span class="group-label">' + data.name + '</span>\
+                </div>';
+      }
+    },
+    {
+      query: ".groupIcon.hover:selected",
+      halign: "center",
+      valign: "center",
+      halignBox: "center",
+      valignBox: "center",
+      tpl: function (data) {
+        var collapsedChildren = data.collapsedChildren? "show" : "hide";
+        return '<div class="group ' + collapsedChildren + '">\
+                  <span class="group-graphic hover selected alarmSeverity-' + data.alarmSeverity + '">\
+                    <i class="icon icon-group"></i>\
+                    <span class="overlay"></span>\
+                  </span>\
+                  <span class="group-label">' + data.name + '</span>\
+                </div>';
+      }
+    },
+    {
+      query: ".nodeIcon",
+      halign: "center",
+      valign: "center",
+      halignBox: "center",
+      valignBox: "center",
+      tpl: function (data) {
+                data.operationalState = "Working";
+                data._hidden = "";
+                return '<div class="element ' + data._hidden + '">\
+                <span class="element-graphic operationalState-'+ data.operationalState + '">\
+                  ' + ItemDisplayIcon(data.ci_type) + '\
+                  <span class="overlay"></span>\
+                </span>\
+                <span title="'+ data.display_label + '" class="element-label">'+ data.display_label + '</span>\
+              </div>'; 
+      }
+    },
+    {
+      query: ".nodeIcon.hover",
+      halign: "center",
+      valign: "center",
+      halignBox: "center",
+      valignBox: "center",
+      tpl: function (data) {
+        data.operationalState = "Working";
+        data._hidden = "";
+        return '<div class="element ' + data._hidden + '">\
+        <span class="element-graphic operationalState-'+ data.operationalState + '">\
+          ' + ItemDisplayIcon(data.ci_type) + '\
+          <span class="overlay"></span>\
+        </span>\
+        <span class="display_info" ><b>' + data.display_label + '</b><BR/>' + data.display_info + '</span>\
+        <span title="'+ data.display_label + '" class="element-label">'+ data.display_label + '</span>\
+      </div>'; 
+      }
+    },
+    {
+      query: ".nodeIcon:selected",
+      halign: "center",
+      valign: "center",
+      halignBox: "center",
+      valignBox: "center",
+      tpl: function (data) {
+        data.operationalState = "Working";
+        data._hidden = "";
+        return '<div class="element ' + data._hidden + '">\
+        <span class="element-graphic selected operationalState-'+ data.operationalState + '">\
+          ' + ItemDisplayIcon(data.ci_type) + '\
+          <span class="overlay"></span>\
+        </span>\
+        <span title="'+ data.display_label + '" class="element-label">'+ data.display_label + '</span>\
+      </div>'; 
+      }
+    },
+    {
+      query: ".nodeIcon.hover:selected",
+      halign: "center",
+      valign: "center",
+      halignBox: "center",
+      valignBox: "center",
+        tpl: function (data) {
+          data.operationalState = "Working";
+          data._hidden = "";
+          return '<div class="element ' + data._hidden + '">\
+          <span class="element-graphic selected operationalState-'+ data.operationalState + '">\
+            ' + ItemDisplayIcon(data.ci_type) + '\
+            <span class="overlay"></span>\
+          </span>\
+          <span class="display_info" ><b>' + data.display_label + '</b><BR/>' + data.display_info + '</span>\
+          <span title="'+ data.display_label + '" class="element-label">'+ data.display_label + '</span>\
+        </div>'; 
+      }
+    }
+  ]);
+
+  var defaults = {
+    container: false, // html dom element
+    viewLiveFramerate: 0, // set false to update graph pan only on drag end; set 0 to do it instantly; set a number (frames per second) to update not more than N times per second
+    thumbnailEventFramerate: 30, // max thumbnail's updates per second triggered by graph updates
+    thumbnailLiveFramerate: false, // max thumbnail's updates per second. Set false to disable
+    dblClickDelay: 200, // milliseconds
+    removeCustomContainer: false, // destroy the container specified by user on plugin destroy
+    rerenderDelay: 100 // ms to throttle rerender updates to the panzoom for performance
+  };
+  
+  var nav = cy.navigator(defaults);
+
+  // benoit.crestey@servicenow.com_
+// Init of variables
+//
+// test
+var network;
+var payloadJson = {};
+var addData = {};
+var nbOfGroups = 0;
+addData["items"] = {};
+addData["classes"] = {};
+var rawData = [];
+var insertPayloadInfo = false;
+var payloadPages = [];
+
+// Reset the variables
+function resetData() {
+  log("resetting data");
+	payloadJson = {};
+	addData = {};
+	nbOfGroups = 0;
+	addData["items"] = {};
+	addData["classes"] = {};
+	document.getElementById("selectedarea").value = "Please select an object";
+	rawData = [];
+  payloadPages = [];
+}
+
+
+
+function loadECC() {
+  // Get the ECC record to load if called from ECC Queue
+  var params = document.URL.parseQuery();
+  if (params["sysparm_ecc_sysid"] != undefined) {
+    _loaddEcc(params["sysparm_ecc_sysid"]);
+  }
+}
+
+resetData();
+loadECC();
+
+// Load the ECC queue record
+function _loaddEcc(sys_id) {
+	rawData = [];
+	document.getElementById("inputarea").value = "Loading...";
+	var gr = new GlideRecord("ecc_queue");
+	if (gr.get(sys_id)) {
+		var payloadTxt = getPayload(gr);
+		// check if multipage
+		if (payloadTxt.indexOf("<?xml versio") > -1) {
+		parser = new DOMParser();
+		xmlDoc = parser.parseFromString(payloadTxt, "text/xml")
+		var payloadXML = xmlDoc.getElementsByTagName("parameter");
+		var multipage = false;
+		var response_to;
+		for (var i = 0; i < payloadXML.length; i++)
+		{
+			if (payloadXML[i].getAttribute("name") == "payload_pages") {
+				multipage = true;
+			}
+			if (payloadXML[i].getAttribute("name") == "response_to") {
+				response_to = payloadXML[i].getAttribute("value");
+			}
+			
+		}
+	} else { setMessage("load ECC failed"); }
+	} else { setMessage("load ECC failed"); }
+	if (multipage) {
+		loadEccPages(response_to);
+	} else {
+		rawData[0] = payloadTxt;
+		document.getElementById("inputarea").value = payloadTxt;
+		process();
+	}
+}
+
+function loadEccPages(sys_id) {
+	var gr = new GlideRecord("ecc_queue");
+	gr.addQuery("response_to", sys_id);
+	gr.query();
+	var i = 0;
+  var total = gr.rows.length;
+	while (gr.next()) {
+    payloadPages[i] = {};
+    payloadPages[i]["sys_id"] = gr.getValue("sys_id");
+    payloadPages[i]["name"] = gr.getValue("name");
+    rawData[i++] = getPayload(gr);
+    document.getElementById("inputarea").value = "Loading multiple payloads : " + (i + 1) + " / " + total;
+	}
+	document.getElementById("inputarea").value = "Multiple payloads loaded in memory, display disabled";
+	process();
+}
+
+// Reading payload
+function getPayload(gr) {
+  var res = gr.getValue("payload");
+  if (res == "<see_attachment/>" ) {
+    res = getAttachmentContentsAsString(gr.getValue("sys_id"));
+	 // console.log("retrieved " + res);
+  }
+  return res;
+}
+
+// If payload is in an attachment, we read the attachment using AJAX, it is not possible to do it client side
+function getAttachmentContentsAsString(recordID) {
+	var ga = new GlideAjax('PayloadNavigatorAttachment') ;
+	ga.addParam('sysparm_name', "getECCAttachment");
+	ga.addParam('sysparm_sys_id', recordID);
+	ga.getXMLWait();
+	return ga.getAnswer();
+}
+
+// Analyze the record to construct payload variables
+function analyzePayload() {
+	if (rawData[0] == undefined) {
+		rawData[0] = document.getElementById("inputarea").value;	
+	}
+		
+	var classList = {};
+	var count =  0;
+	var offset_items = 0;
+	var offset_relations = 0;
+	var offset_references = 0;
+	var ref_record = {};
+						  
+    // If format is MXL, extracting the content
+	payloadJson = {};
+	for (var p = 0; p < rawData.length; p++) {
+		var payloadData;
+		console.log(p);
+    if (rawData[p].indexOf("<?xml versio") > -1) {
+			parser = new DOMParser();
+			xmlDoc = parser.parseFromString(rawData[p], "text/xml");
+			payloadData = xmlDoc.getElementsByTagName("output")[0].childNodes[0].nodeValue;
+		} else {
+			payloadData = rawData[p];
+		}
+		//console.log("R" + rawData);
+		//console.log(payloadData);
+    try {
+
+      payloadJsonPage = JSON.parse(payloadData);
+    		
+      if (!payloadJsonPage.hasOwnProperty("items")) {
+        if (payloadJsonPage.hasOwnProperty("results")) {
+          payloadJsonPage = payloadJsonPage["results"];
+        }
+      }
+      if (p == 0) {
+        payloadJson = payloadJsonPage;
+      } else {
+        for (var i in payloadJsonPage["items"]) {
+          payloadJson["items"][offset_items + parseInt(i)] = payloadJsonPage["items"][i];
+          if (insertPayloadInfo == true) {
+            payloadJson["items"][offset_items + parseInt(i)]["navigator_payload_from_multipage_id"] = p;
+            payloadJson["items"][offset_items + parseInt(i)]["navigator_payload_from_multipage_sys_id"] = payloadPages[p]["sys_id"];
+            payloadJson["items"][offset_items + parseInt(i)]["navigator_payload_from_multipage_name"] = payloadPages[p]["name"];
+          }
+        }
+        for (i in payloadJsonPage["relations"]) {
+          ref_record = payloadJsonPage["relations"][i];
+          ref_record["child"] += offset_items;
+          ref_record["parent"] += offset_items;				
+          payloadJson["relations"][offset_relations + parseInt(i)] = ref_record;
+        }
+        for (i in payloadJsonPage["references"]) {
+          ref_record = payloadJsonPage["references"][i];
+          ref_record["child"] += offset_items;
+          ref_record["parent"] += offset_items;				
+          payloadJson["references"][offset_references + parseInt(i)] = ref_record;
+        }
+      }
+      
+      if (payloadJson.hasOwnProperty("items")){
+        offset_items = payloadJson["items"].length;
+      
+      }
+      if (payloadJson.hasOwnProperty("relations")){
+        offset_relations = payloadJson["relations"].length;
+      }
+      
+      if (payloadJson.hasOwnProperty("references")){
+        offset_references = payloadJson["references"].length;
+      }
+    } catch (e) {
+      setMessage("Failed to parse the JSON payload");
+      payloadJson["items"] = {};
+      payloadJson["relations"] = {};
+      payloadJson["references"] = {};
+    }
+	}
+	console.log(payloadJson["items"]);
+	log(payloadJson["items"].length + " loaded");
+	
+	  // Compiling objects categorized by className
+		for (var i=0; i < payloadJson["items"].length; i++) {
+			var className = payloadJson["items"][i]["className"];
+			if (!addData["classes"].hasOwnProperty(className)) {
+				addData["classes"][className] = {};
+				addData["classes"][className]["group"] = count++;
+				addData["classes"][className]["visible"] = true;
+				addData["classes"][className]["count"] = 1;
+				nbOfGroups = count;
+			} else {
+				addData["classes"][className]["count"]++;
+			}
+			addData["items"][i] = {};
+			addData["items"][i]["content"] = payloadJson["items"][i];
+			addData["items"][i]["group"] = addData["classes"][className]["group"];
+		}
+	
+	
+
+	
+	
+	
+
+}
+
+function log(txt) {
+	console.log(txt);
+}
+
+function setMessage(txt) {
+	document.getElementById("message").innerHTML = txt;
+}
+
+// If a node is selected, we extract only the item and it's relations/reference
+function filterOnNode(id) {
+	var res = "Item : \n" + JSON.stringify(payloadJson["items"][id], null, 4) + "\n";
+	
+	var res2 = "Relations :\n";
+	for (var j in payloadJson["relations"]) {
+		var type = payloadJson["relations"][j]["type"];
+		var parent = payloadJson["relations"][j]["parent"];
+		var child = payloadJson["relations"][j]["child"];
+		if (parent == id || child == id) {
+			res2 += JSON.stringify(payloadJson["relations"][j], null, 4) + "\n";
+		}
+	}
+	if (res2 != "Relations :\n") {
+		res += res2;
+	}
+	
+	var res3 = "References :\n";
+	for (var k in payloadJson["references"]) {
+		var referenceField = payloadJson["references"][k]["referenceField"];
+		var referenceDirection = payloadJson["references"][k]["referenceDirection"];
+		parent = payloadJson["references"][k]["parent"];
+		child = payloadJson["references"][k]["child"];
+		if (parent == id || child == id) {
+				res3 += JSON.stringify(payloadJson["references"][k], null, 4) + "\n";
+		}
+	}
+	if (res3 != "References :\n") {
+		res += res3;
+	}
+
+	document.getElementById("selectedarea").value = res;
+}
+
+
+function searchNode() {
+	var id = Number(document.getElementById("objid").value);
+	filterOnNode(id);
+}
+
+// Construct the display canvas depending on the payload
+function displayCanvas() {
+ /* cy.add({
+    data: { id: 'node' + i }
+    }
+);*/
+cy.elements().remove();
+for (var i in addData["classes"]) {
+  if (i != "undefined") {
+    if (addData["classes"][i]["visible"]) {
+  //    cy.add({group: 'nodes', data : {id: i, name: i}, classes: "groupIcon"});
+    }
+  }
+}
+
+  // Node list	
+	for (var i=0; i < payloadJson["items"].length; i++) {
+		var className = payloadJson["items"][i]["className"];
+    var name = payloadJson["items"][i]["values"]["name"];
+		var display_label = payloadJson["items"][i]["values"]["_display_label"];
+		var display_info = payloadJson["items"][i]["values"]["_display_info"];
+		var group = addData["items"][i]["group"];
+		var sys_id = payloadJson["items"][i]["values"]["sys_id"];
+		if (addData["classes"][className]["visible"]) {
+	//		cy.add({id: i, label: className + "(" + i + ")", group: group});
+    cy.add({group: 'nodes', data : {id: i, name: name, parent: className, type: group, ci_type: className, display_label: display_label, display_info: display_info, sys_id: sys_id, group: group}, classes: "nodeIcon"});
+  
+		}
+	}
+	/*
+	// Grouping noes for a better display if there is less than 100 objects
+	if (payloadJson["items"].length < 100){
+		for (var g = 0; g < nbOfGroups; g++) {
+			for (var gi = 0; gi < payloadJson["items"].length; gi++) {
+				if (addData["items"][gi]["group"] == g) {
+					for (var gj = 0; gj < payloadJson["items"].length; gj++) {
+						if (addData["items"][gj]["group"] == g) {
+							if (gi != gj && gi < gj) {
+								edges.add({from: gi, to: gj, hidden: true});
+							}
+						}
+					}		
+				}
+			}
+		}
+	} else {
+		log("Too many objects to load, no grouping");
+	}
+*/
+  // Relations list	
+	for (var j in payloadJson["relations"]) {
+		var type = payloadJson["relations"][j]["type"];
+		var parent = payloadJson["relations"][j]["parent"];
+		var child = payloadJson["relations"][j]["child"];
+    var sys_id = payloadJson["relations"][j]["sys_id"];
+
+		//edges.add({from: parent, to: child, arrows: { to: { enabled: true, scaleFactor: 1, type: "arrow" }}, label: type, font: {color: 'black'}});
+    if (type) {
+      //console.log(j);
+      try{
+        cy.add({group: 'edges', data : {id: 'relations_' + j, source: parent, target: child, label: type, sys_id: sys_id}});
+      } catch (e) {
+        console.log("warning link");
+      }
+    }
+    
+	}
+	/*
+  // References list
+	for (var k in payloadJson["references"]) {
+		var referenceField = payloadJson["references"][k]["referenceField"];
+		var referenceDirection = payloadJson["references"][k]["referenceDirection"];
+		parent = payloadJson["references"][k]["parent"];
+		child = payloadJson["references"][k]["child"];
+		if (referenceDirection == "childToParent") {
+			edges.add({from: child, to: parent, arrows: { to: { enabled: true, scaleFactor: 1, type: "arrow" }}, label: referenceField + referenceDirection, dashes: true, font: {color: 'black'}});
+		}
+		if (referenceDirection == "parentToChild") {
+			edges.add({from: parent, to: child, arrows: { to: { enabled: true, scaleFactor: 1, type: "arrow" }}, label: referenceField + referenceDirection, dashes: true, font: {color: 'black'}});
+		}	
+	}
+	
+	// Constructing canvas
+	var div = document.createElement("div");
+	var olditem = document.getElementById("par");
+	olditem.replaceChild(div, olditem.childNodes[0]);
+	div.setAttribute("id", 'par1');
+	div.setAttribute("src",'par1');
+	var length                 = 300;
+	div.style.height           = "800px";
+	div.style.width            = "100%";
+	div.style.backgroundColort = "#FFFFFF";
+	div.style.border           = "1px solid lightgray";
+	var container = document.getElementById('par1');	          
+	var data = {
+        nodes: nodes,
+        edges: edges
+   };
+
+  network = new vis.Network(container, data, options);
+  netwo
+	  *//*
+  //});
+  // Stabilizing the graph to have a nicer rendering, depending of number of objects
+  if (payloadJson["items"].length < 100) {
+	 network.stabilize(5000);  
+  } else {
+	  if (payloadJson["items"].length >= 100 && payloadJson["items"].length < 250) {
+		  network.stabilize(1000);
+	  } else{
+		  network.stabilize(2);
+	  }
+  }*/
+  //cytoscape.use( dagre );
+ var layout = cy.layout({
+    name: 'dagre',
+    padding: 20,
+    spacingFactor: 1.2
+  });
+  
+ 
+  layout.run();
+}
+
+// If user selects other objets
+function updateClassFilter() {
+	res = "<div>";
+	for (var i in addData["classes"]) {
+		if (i != "undefined") {
+      if (addData["classes"][i]["visible"]) {
+        res += "<input type='checkbox' id='classes' name='" + i + "' onClick=\"selectClass('" + i + "')\" checked>" + "&nbsp;" + i + "&nbsp;" + addData["classes"][i]["count"] + "&nbsp;[<a href='$ciModel.do?id=basic_info&class=" + i + "' target='_blank'>" + "CI Class Manager</a>]<BR/>";
+      } else {
+        res += "<input type='checkbox' id='classes' name='" + i + "' onClick=\"selectClass('" + i + "')\">" + "&nbsp;" + i + "&nbsp;" + addData["classes"][i]["count"] + "&nbsp;[<a href='$ciModel.do?id=basic_info&class=" + i + "' target='_blank'>" + "CI Class Manager</a>]<BR/>";
+      }
+			
+		}
+	}
+	res += "</div>";
+	document.getElementById('options').innerHTML = res;
+}
+
+function selectClass(className) {
+	addData["classes"][className]["visible"] = !addData["classes"][className]["visible"];
+	var mode = document.getElementById("mode").value;
+  if (mode == "graphical") {
+		displayCanvas();
+	} 
+  if (mode == "text") {
+		displayText();
+	}
+}
+
+function process_button() {
+	resetData();
+}
+
+function reset_button() {
+	resetData();
+  document.getElementById("inputarea").value = "";
+	process();
+}
+
+function process() {	
+	analyzePayload();
+	displayCanvas();
+	updateClassFilter();
+}
+
+function hideAllClasses() {
+  for (var className in addData["classes"]) {
+    addData["classes"][className]["visible"] = false;
+  }
+}
+
+function displayText() {
+	var res = "Class count :<BR/>";
+	for (var i in addData["classes"]) {
+		if (i != "undefined") {
+			res += i + ";" + addData["classes"][i]["count"] + "<BR/>";
+		}
+	}
+	res += "Content :<BR/>";
+	for (var i in addData["classes"]) {
+		if (i != "undefined" && addData["classes"][i]["visible"]) {
+			res += i + ";";
+			for (var k in payloadJson["items"]) {
+				if (payloadJson["items"][k]["className"] == i) {
+					res += i + ";" + k + ";" + payloadJson["items"][k]["values"]["name"] + ";" + "<BR/>";
+				}
+			}
+			res += "<BR/>";
+		}
+	}
+	
+	document.getElementById("par").innerHTML = res;
+}
+
+function reload_with_page_info() {
+  insertPayloadInfo = true;
+  resetData();
+  loadECC();
+}
+
+// Icon Managment
+iconsImages = null;
+function iconsLoad() {
+  var ga = new GlideAjax('x_snc_graph.BCRCMDBExplorerHelper') ;
+	ga.addParam('sysparm_name', "getIconsList");
+  ga.addParam('sysparm_sys_id', "13");
+	ga.getXML(iconsLoadAsync);
+}
+
+function iconsLoadAsync(response) {
+  var answer = response.responseXML.documentElement.getAttribute("answer");
+  iconsImages = answer.evalJSON()
+  console.log('got ' + iconsImages);
+}
+
+iconsLoad();
+
+function ItemDisplayIcon(className) {
+  if (iconsImages && iconsImages[className]) {
+    return '<img src="./' + iconsImages[className] + '" height="20" width="20"></img>';
+  }
+  return '<img src="./images/app.ngbsm/generic.svg" height="20" width="20"></img>';
+}
+
+function loadtestpayLoad0() {
+  console.log("load ");
+  resetData();
+  var ga = new GlideAjax('x_snc_graph.BCRCMDBExplorerHelper');
+	ga.addParam('sysparm_name', "getCI");
+  //ga.addParam('sysparm_sys_id', "21842196db5fb4507949ff1a6896193d,6d842196db5fb4507949ff1a6896193e,29842196db5fb4507949ff1a68961929");
+  ga.addParam('sysparm_sys_id', "1067bbdd7f301200bee45f19befa9162");
+
+	ga.addParam('sysparm_levels', "3");
+  ga.getXML(loadtestpayLoad1Async);
+}
+
+function loadtestpayLoad1() {
+  console.log("load ");
+  resetData();
+  var ga = new GlideAjax('x_snc_graph.BCRCMDBExplorerHelper') ;
+	ga.addParam('sysparm_name', "getCI");
+  ga.addParam('sysparm_sys_id', "5397819bc0a8016400e2f02aa9444989,01a9ec0d3790200044e0bfc8bcbe5dc3");
+  ga.addParam('sysparm_levels', "20");
+  ga.getXML(loadtestpayLoad1Async);
+}
+
+function loadtestpayLoad1Async(response) {
+  var answer = response.responseXML.documentElement.getAttribute("answer");
+  var payload = answer.evalJSON();
+  console.log('got ' + payload);
+  document.getElementById("inputarea").value = answer;
+  process();
+}
+ 
+function loadtestpayLoad2() {
+  resetData();
+	document.getElementById("inputarea").value = "{ \n\
+    \"items\" : [ { \n\
+      \"className\" : \"cmdb_ci_linux_server\",\n\
+      \"values\" : {\n\
+        \"default_gateway\" : \"10.205.30.1\",\n\
+        \"short_description\" : \"Linux le01vm01.fr1.oraclecloudomer.com 4.1.12-124.30.1.el7uek.x86_64 #2 SMP Thu Aug 8 01:38:50 GMT 2019 x86_64 x86_64 x86_64 GNU/Linux\",\n\
+        \"cpu_manufacturer\" : \"GenuineIntel\",\n\
+        \"cpu_core_thread\" : \"1\",\n\
+        \"sys_class_name\" : \"cmdb_ci_linux_server\",\n\
+        \"manufacturer\" : \"Xen\",\n\
+        \"cpu_count\" : \"1\",\n\
+        \"cpu_type\" : \"GenuineIntel\",\n\
+        \"classifier\" : \"c27c1ccf0a0a0b1c006149d6a38f3958\",\n\
+        \"model_number\" : \"4.4.4OVM\",\n\
+        \"start_date\" : \"NaN\",\n\
+        \"ram\" : \"201053.0\",\n\
+        \"cpu_name\" : \"Intel(R) Xeon(R) Platinum 8160 CPU @ 2.10GHz\",\n\
+        \"os\" : \"Oracle Linux 4/5/6 (64-bit)\",\n\
+        \"fqdn\" : \"bcrvm0101vm01.fr1.ocm.s1517622.oraclecloudatcustomer.com\",\n\
+        \"os_version\" : \"7.7\",\n\
+        \"cpu_speed\" : \"2095\",\n\
+        \"model_id\" : \" HVM domU\",\n\
+        \"ip_address\" : \"10.C.D.F\",\n\
+        \"kernel_release\" : \"4.1.12-124.30.1.el7uek.x86_64\",\n\
+        \"disk_space\" : \"0.00\",\n\
+        \"name\" : \"le01vm01\",\n\
+        \"dns_domain\" : \"oracle.priv\",\n\
+        \"cpu_core_count\" : \"10\"\n\
+      },\n\
+      \"lookup\" : [ {\n\
+        \"className\" : \"cmdb_serial_number\",\n\
+        \"values\" : {\n\
+          \"valid\" : \"true\",\n\
+          \"serial_number\" : \"b6ff4sv-9d8d-4fae-8deb-9350a60svb\",\n\
+          \"serial_number_type\" : \"system\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"cmdb_serial_number\",\n\
+        \"values\" : {\n\
+          \"valid\" : \"true\",\n\
+          \"serial_number\" : \"b6ffsve0-9d8d-4fae-8deb-935sv50ab\",\n\
+          \"serial_number_type\" : \"uuid\"\n\
+        }\n\
+      } ],\n\
+      \"related\" : [ {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"00:16:3e:e0:90:56\",\n\
+          \"ip_address\" : \"10.205.25.3\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"clib1\",\n\
+          \"ip_address\" : \"192.168.112.5\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib0\",\n\
+          \"ip_address\" : \"192.168.12.65\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib0\",\n\
+          \"ip_address\" : \"192.168.12.74\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib1\",\n\
+          \"ip_address\" : \"192.168.12.76\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib1\",\n\
+          \"ip_address\" : \"192.168.12.75\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"00:16:3e:88:9a:e0\",\n\
+          \"ip_address\" : \"10.205.30.5\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib1\",\n\
+          \"ip_address\" : \"192.168.12.66\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"clib1\",\n\
+          \"ip_address\" : \"192.168.112.4\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib0\",\n\
+          \"ip_address\" : \"192.168.12.71\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib0\",\n\
+          \"ip_address\" : \"192.168.12.73\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib1\",\n\
+          \"ip_address\" : \"192.168.12.68\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"00:16:3e:88:9a:e0\",\n\
+          \"ip_address\" : \"10.205.30.4\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib1\",\n\
+          \"ip_address\" : \"192.168.12.67\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"c8:e7:f0:b5:0a:00\",\n\
+          \"ip_address\" : \"10.205.25.1\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"clib0\",\n\
+          \"ip_address\" : \"192.168.112.3\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"clib1\",\n\
+          \"ip_address\" : \"192.168.112.7\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"clib0\",\n\
+          \"ip_address\" : \"192.168.112.8\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib0\",\n\
+          \"ip_address\" : \"192.168.12.70\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib0\",\n\
+          \"ip_address\" : \"192.168.12.72\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib1\",\n\
+          \"ip_address\" : \"192.168.12.69\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"bondeth0\",\n\
+          \"ip_address\" : \"10.205.30.3\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"00:16:3e:ef:45:ff\",\n\
+          \"ip_address\" : \"10.205.30.12\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"clib0\",\n\
+          \"ip_address\" : \"192.168.112.5\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"clib1\",\n\
+          \"ip_address\" : \"192.168.112.8\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"clib1\",\n\
+          \"ip_address\" : \"192.168.112.6\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib0\",\n\
+          \"ip_address\" : \"192.168.12.69\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib1\",\n\
+          \"ip_address\" : \"192.168.12.70\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"bondeth0\",\n\
+          \"ip_address\" : \"10.205.30.11\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"clib0\",\n\
+          \"ip_address\" : \"192.168.112.4\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib0\",\n\
+          \"ip_address\" : \"192.168.12.68\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib1\",\n\
+          \"ip_address\" : \"192.168.12.72\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib1\",\n\
+          \"ip_address\" : \"192.168.12.71\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"c8:e7:f0:b5:0a:00\",\n\
+          \"ip_address\" : \"10.205.30.1\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"00:16:3e:ba:a3:d8\",\n\
+          \"ip_address\" : \"10.205.30.10\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"clib0\",\n\
+          \"ip_address\" : \"192.168.112.7\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"clib1\",\n\
+          \"ip_address\" : \"192.168.112.3\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib0\",\n\
+          \"ip_address\" : \"192.168.12.67\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib0\",\n\
+          \"ip_address\" : \"192.168.12.76\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib1\",\n\
+          \"ip_address\" : \"192.168.12.73\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"00:16:3e:ba:a3:d8\",\n\
+          \"ip_address\" : \"10.205.30.7\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"00:16:3e:ef:45:ff\",\n\
+          \"ip_address\" : \"10.205.30.9\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"clib0\",\n\
+          \"ip_address\" : \"192.168.112.6\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib0\",\n\
+          \"ip_address\" : \"192.168.12.66\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib0\",\n\
+          \"ip_address\" : \"192.168.12.75\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib1\",\n\
+          \"ip_address\" : \"192.168.12.74\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"00:16:3e:ba:a3:d8\",\n\
+          \"ip_address\" : \"10.205.30.6\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"stib1\",\n\
+          \"ip_address\" : \"192.168.12.65\"\n\
+        }\n\
+      }, {\n\
+        \"className\" : \"discovery_net_arp_table\",\n\
+        \"values\" : {\n\
+          \"mac_address\" : \"00:16:3e:ef:45:ff\",\n\
+          \"ip_address\" : \"10.205.30.8\"\n\
+        }\n\
+      } ]\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_ip_address\",\n\
+      \"values\" : {\n\
+        \"ip_version\" : \"4\",\n\
+        \"install_status\" : \"1\",\n\
+        \"netmask\" : \"255.255.255.240\",\n\
+        \"mac_address\" : \"00:16:3e:ed:76:60\",\n\
+        \"name\" : \"bondeth0\",\n\
+        \"ip_address\" : \"10.205.30.2\",\n\
+        \"sys_class_name\" : \"cmdb_ci_ip_address\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_ip_address\",\n\
+      \"values\" : {\n\
+        \"ip_version\" : \"4\",\n\
+        \"install_status\" : \"1\",\n\
+        \"netmask\" : \"255.255.255.240\",\n\
+        \"mac_address\" : \"00:16:3e:ed:76:60\",\n\
+        \"name\" : \"bondeth0\",\n\
+        \"ip_address\" : \"10.205.30.3\",\n\
+        \"sys_class_name\" : \"cmdb_ci_ip_address\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_ip_address\",\n\
+      \"values\" : {\n\
+        \"ip_version\" : \"4\",\n\
+        \"install_status\" : \"1\",\n\
+        \"netmask\" : \"255.255.255.240\",\n\
+        \"mac_address\" : \"00:16:3e:ed:76:60\",\n\
+        \"name\" : \"bondeth0\",\n\
+        \"ip_address\" : \"10.205.30.11\",\n\
+        \"sys_class_name\" : \"cmdb_ci_ip_address\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_ip_address\",\n\
+      \"values\" : {\n\
+        \"ip_version\" : \"4\",\n\
+        \"install_status\" : \"1\",\n\
+        \"netmask\" : \"255.255.255.248\",\n\
+        \"mac_address\" : \"00:16:3e:34:87:96\",\n\
+        \"name\" : \"bondeth1\",\n\
+        \"ip_address\" : \"10.205.25.2\",\n\
+        \"sys_class_name\" : \"cmdb_ci_ip_address\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_unix_cluster_node\",\n\
+      \"values\" : {\n\
+        \"node_state\" : \"1\",\n\
+        \"name\" : \"bcrvm0101vm01\",\n\
+        \"node_status\" : \"ONLINE\",\n\
+        \"install_status\" : \"1\",\n\
+        \"sys_class_name\" : \"cmdb_ci_unix_cluster_node\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_unix_cluster_node\",\n\
+      \"values\" : {\n\
+        \"node_state\" : \"1\",\n\
+        \"name\" : \"bcrvm0102vm01\",\n\
+        \"node_status\" : \"ONLINE\",\n\
+        \"install_status\" : \"1\",\n\
+        \"sys_class_name\" : \"cmdb_ci_unix_cluster_node\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_unix_cluster_node\",\n\
+      \"values\" : {\n\
+        \"node_state\" : \"1\",\n\
+        \"name\" : \"bcrvm0103vm01\",\n\
+        \"node_status\" : \"ONLINE\",\n\
+        \"install_status\" : \"1\",\n\
+        \"sys_class_name\" : \"cmdb_ci_unix_cluster_node\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_unix_cluster_node\",\n\
+      \"values\" : {\n\
+        \"node_state\" : \"1\",\n\
+        \"name\" : \"bcrvm0104vm01\",\n\
+        \"node_status\" : \"ONLINE\",\n\
+        \"install_status\" : \"1\",\n\
+        \"sys_class_name\" : \"cmdb_ci_unix_cluster_node\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"dscy_router_interface\",\n\
+      \"values\" : {\n\
+        \"name\" : \"bondeth0\",\n\
+        \"ip_address\" : \"10.205.30.2\",\n\
+        \"install_status\" : \"1\",\n\
+        \"mac_address\" : \"00:16:3e:ed:76:60\",\n\
+        \"sys_class_name\" : \"dscy_router_interface\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"dscy_router_interface\",\n\
+      \"values\" : {\n\
+        \"name\" : \"bondeth1\",\n\
+        \"ip_address\" : \"10.205.25.2\",\n\
+        \"install_status\" : \"1\",\n\
+        \"mac_address\" : \"00:16:3e:34:87:96\",\n\
+        \"sys_class_name\" : \"dscy_router_interface\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_storage_device\",\n\
+      \"values\" : {\n\
+        \"storage_type\" : \"logical\",\n\
+        \"size_bytes\" : \"1073741824\",\n\
+        \"device_id\" : \"/dev/mapper/VGExaDb-LVDoNotRemoveOrUse\",\n\
+        \"install_status\" : \"1\",\n\
+        \"name\" : \"/dev/mapper/VGExaDb-LVDoNotRemoveOrUse\",\n\
+        \"device_interface\" : \"lvm\",\n\
+        \"device_major_minor\" : \"249:4\",\n\
+        \"sys_class_name\" : \"cmdb_ci_storage_device\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_storage_device\",\n\
+      \"values\" : {\n\
+        \"storage_type\" : \"logical\",\n\
+        \"size_bytes\" : \"25769803776\",\n\
+        \"device_id\" : \"/dev/mapper/VGExaDb-LVDbSys2\",\n\
+        \"install_status\" : \"1\",\n\
+        \"name\" : \"/dev/mapper/VGExaDb-LVDbSys2\",\n\
+        \"device_interface\" : \"lvm\",\n\
+        \"device_major_minor\" : \"249:1\",\n\
+        \"sys_class_name\" : \"cmdb_ci_storage_device\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_storage_device\",\n\
+      \"values\" : {\n\
+        \"storage_type\" : \"logical\",\n\
+        \"size_bytes\" : \"17179869184\",\n\
+        \"device_id\" : \"/dev/mapper/VGExaDb-LVDbSwap1\",\n\
+        \"install_status\" : \"1\",\n\
+        \"name\" : \"/dev/mapper/VGExaDb-LVDbSwap1\",\n\
+        \"device_interface\" : \"lvm\",\n\
+        \"device_major_minor\" : \"249:3\",\n\
+        \"sys_class_name\" : \"cmdb_ci_storage_device\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_storage_device\",\n\
+      \"values\" : {\n\
+        \"storage_type\" : \"logical\",\n\
+        \"size_bytes\" : \"25769803776\",\n\
+        \"device_id\" : \"/dev/mapper/VGExaDb-LVDbSys1\",\n\
+        \"install_status\" : \"1\",\n\
+        \"name\" : \"/dev/mapper/VGExaDb-LVDbSys1\",\n\
+        \"device_interface\" : \"lvm\",\n\
+        \"device_major_minor\" : \"249:0\",\n\
+        \"sys_class_name\" : \"cmdb_ci_storage_device\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_storage_device\",\n\
+      \"values\" : {\n\
+        \"storage_type\" : \"logical\",\n\
+        \"size_bytes\" : \"21474836480\",\n\
+        \"device_id\" : \"/dev/mapper/VGExaDb-LVDbOra1\",\n\
+        \"install_status\" : \"1\",\n\
+        \"name\" : \"/dev/mapper/VGExaDb-LVDbOra1\",\n\
+        \"device_interface\" : \"lvm\",\n\
+        \"device_major_minor\" : \"249:2\",\n\
+        \"sys_class_name\" : \"cmdb_ci_storage_device\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_unix_cluster\",\n\
+      \"values\" : {\n\
+        \"cluster_version\" : \"19.0.0.0.0\",\n\
+        \"short_description\" : \"Oracle Clusterware\",\n\
+        \"cluster_id\" : \"man1-73p1-000_\",\n\
+        \"cluster_status\" : \"ONLINE\",\n\
+        \"install_status\" : \"1\",\n\
+        \"name\" : \"man1-73p1-000\",\n\
+        \"cluster_type\" : \"Oracle Clusterware\",\n\
+        \"sys_class_name\" : \"cmdb_ci_unix_cluster\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_dns_name\",\n\
+      \"values\" : {\n\
+        \"name\" : \"   bcrvm0101vm01.oracle.bcrnetwork.priv\",\n\
+        \"ip_address\" : \"10.205.30.2\",\n\
+        \"install_status\" : \"1\",\n\
+        \"fqdn\" : \"   bcrvm0101vm01.oracle.bcrnetwork.priv\",\n\
+        \"mac_address\" : \"00:16:3e:ed:76:60\",\n\
+        \"sys_class_name\" : \"cmdb_ci_dns_name\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_dns_name\",\n\
+      \"values\" : {\n\
+        \"name\" : \"   bcrvm0101vm01-vip.oracle.bcrnetwork.priv\",\n\
+        \"ip_address\" : \"10.205.30.3\",\n\
+        \"install_status\" : \"1\",\n\
+        \"fqdn\" : \"   bcrvm0101vm01-vip.oracle.bcrnetwork.priv\",\n\
+        \"mac_address\" : \"00:16:3e:ed:76:60\",\n\
+        \"sys_class_name\" : \"cmdb_ci_dns_name\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_dns_name\",\n\
+      \"values\" : {\n\
+        \"name\" : \"   bcrvm01prod-scan.oracle.bcrnetwork.priv\",\n\
+        \"ip_address\" : \"10.205.30.11\",\n\
+        \"install_status\" : \"1\",\n\
+        \"fqdn\" : \"   bcrvm01prod-scan.oracle.bcrnetwork.priv\",\n\
+        \"mac_address\" : \"00:16:3e:ed:76:60\",\n\
+        \"sys_class_name\" : \"cmdb_ci_dns_name\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_dns_name\",\n\
+      \"values\" : {\n\
+        \"name\" : \"   bcrvm01db01-73p-dr.oracle.bcrnetwork.priv\",\n\
+        \"ip_address\" : \"10.205.25.2\",\n\
+        \"install_status\" : \"1\",\n\
+        \"fqdn\" : \"   bcrvm01db01-73p-dr.oracle.bcrnetwork.priv\",\n\
+        \"mac_address\" : \"00:16:3e:34:87:96\",\n\
+        \"sys_class_name\" : \"cmdb_ci_dns_name\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"dscy_route_interface\",\n\
+      \"values\" : {\n\
+        \"name\" : \"bondeth1\",\n\
+        \"dest_ip_network\" : \"10.205.25.0/29\",\n\
+        \"install_status\" : \"1\",\n\
+        \"sys_class_name\" : \"dscy_route_interface\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"dscy_route_interface\",\n\
+      \"values\" : {\n\
+        \"name\" : \"bondeth0\",\n\
+        \"dest_ip_network\" : \"10.205.30.0/28\",\n\
+        \"install_status\" : \"1\",\n\
+        \"sys_class_name\" : \"dscy_route_interface\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"dscy_route_interface\",\n\
+      \"values\" : {\n\
+        \"name\" : \"stib0\",\n\
+        \"dest_ip_network\" : \"192.168.12.0/23\",\n\
+        \"install_status\" : \"1\",\n\
+        \"sys_class_name\" : \"dscy_route_interface\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"dscy_route_interface\",\n\
+      \"values\" : {\n\
+        \"name\" : \"clib0\",\n\
+        \"dest_ip_network\" : \"192.168.112.0/23\",\n\
+        \"install_status\" : \"1\",\n\
+        \"sys_class_name\" : \"dscy_route_interface\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"dscy_route_next_hop\",\n\
+      \"values\" : {\n\
+        \"name\" : \"bondeth0\",\n\
+        \"dest_ip_network\" : \"0.0.0.0/0\",\n\
+        \"install_status\" : \"1\",\n\
+        \"next_hop_ip_address\" : \"10.205.30.1\",\n\
+        \"sys_class_name\" : \"dscy_route_next_hop\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_network_adapter\",\n\
+      \"values\" : {\n\
+        \"install_status\" : \"1\",\n\
+        \"netmask\" : \"255.255.255.240\",\n\
+        \"mac_address\" : \"00:16:3e:ed:76:60\",\n\
+        \"name\" : \"bondeth0\",\n\
+        \"ip_address\" : \"10.205.30.2\",\n\
+        \"ip_default_gateway\" : \"10.205.30.1\",\n\
+        \"sys_class_name\" : \"cmdb_ci_network_adapter\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_network_adapter\",\n\
+      \"values\" : {\n\
+        \"install_status\" : \"1\",\n\
+        \"netmask\" : \"255.255.255.248\",\n\
+        \"mac_address\" : \"00:16:3e:34:87:96\",\n\
+        \"name\" : \"bondeth1\",\n\
+        \"ip_address\" : \"10.205.25.2\",\n\
+        \"ip_default_gateway\" : \"10.205.30.1\",\n\
+        \"sys_class_name\" : \"cmdb_ci_network_adapter\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_lvm_pool\",\n\
+      \"values\" : {\n\
+        \"name\" : \"/dev/mapper/VGExaDb-LVDoNotRemoveOrUse\",\n\
+        \"size_bytes\" : \"1073741824\",\n\
+        \"pool_id\" : \"/dev/mapper/VGExaDb-LVDoNotRemoveOrUse\",\n\
+        \"disk_space\" : \"1\",\n\
+        \"install_status\" : \"1\",\n\
+        \"sys_class_name\" : \"cmdb_ci_lvm_pool\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_lvm_pool\",\n\
+      \"values\" : {\n\
+        \"name\" : \"/dev/mapper/VGExaDb-LVDbSys2\",\n\
+        \"size_bytes\" : \"25769803776\",\n\
+        \"pool_id\" : \"/dev/mapper/VGExaDb-LVDbSys2\",\n\
+        \"disk_space\" : \"24\",\n\
+        \"install_status\" : \"1\",\n\
+        \"sys_class_name\" : \"cmdb_ci_lvm_pool\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_lvm_pool\",\n\
+      \"values\" : {\n\
+        \"name\" : \"/dev/mapper/VGExaDb-LVDbSwap1\",\n\
+        \"size_bytes\" : \"17179869184\",\n\
+        \"pool_id\" : \"/dev/mapper/VGExaDb-LVDbSwap1\",\n\
+        \"disk_space\" : \"16\",\n\
+        \"install_status\" : \"1\",\n\
+        \"sys_class_name\" : \"cmdb_ci_lvm_pool\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_lvm_pool\",\n\
+      \"values\" : {\n\
+        \"name\" : \"/dev/mapper/VGExaDb-LVDbSys1\",\n\
+        \"size_bytes\" : \"25769803776\",\n\
+        \"pool_id\" : \"/dev/mapper/VGExaDb-LVDbSys1\",\n\
+        \"disk_space\" : \"24\",\n\
+        \"install_status\" : \"1\",\n\
+        \"sys_class_name\" : \"cmdb_ci_lvm_pool\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_lvm_pool\",\n\
+      \"values\" : {\n\
+        \"name\" : \"/dev/mapper/VGExaDb-LVDbOra1\",\n\
+        \"size_bytes\" : \"21474836480\",\n\
+        \"pool_id\" : \"/dev/mapper/VGExaDb-LVDbOra1\",\n\
+        \"disk_space\" : \"20\",\n\
+        \"install_status\" : \"1\",\n\
+        \"sys_class_name\" : \"cmdb_ci_lvm_pool\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_file_system\",\n\
+      \"values\" : {\n\
+        \"file_system\" : \"ext4\",\n\
+        \"size_bytes\" : \"25231224832\",\n\
+        \"volume_id\" : \"/dev/mapper/VGExaDb-LVDbSys1\",\n\
+        \"size\" : \"24639868\",\n\
+        \"install_status\" : \"1\",\n\
+        \"media_type\" : \"fixed\",\n\
+        \"mount_point\" : \"/\",\n\
+        \"name\" : \"/dev/mapper/VGExaDb-LVDbSys1\",\n\
+        \"type\" : \"local\",\n\
+        \"free_space_bytes\" : \"9046921216\",\n\
+        \"sys_class_name\" : \"cmdb_ci_file_system\",\n\
+        \"capacity\" : \"63%\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_file_system\",\n\
+      \"values\" : {\n\
+        \"file_system\" : \"ext4\",\n\
+        \"size_bytes\" : \"511647744\",\n\
+        \"volume_id\" : \"/dev/xvda1\",\n\
+        \"size\" : \"499656\",\n\
+        \"install_status\" : \"1\",\n\
+        \"media_type\" : \"fixed\",\n\
+        \"mount_point\" : \"/boot\",\n\
+        \"name\" : \"/dev/xvda1\",\n\
+        \"type\" : \"local\",\n\
+        \"free_space_bytes\" : \"430825472\",\n\
+        \"sys_class_name\" : \"cmdb_ci_file_system\",\n\
+        \"capacity\" : \"12%\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_file_system\",\n\
+      \"values\" : {\n\
+        \"file_system\" : \"ext4\",\n\
+        \"size_bytes\" : \"316934193152\",\n\
+        \"volume_id\" : \"/dev/xvdh\",\n\
+        \"size\" : \"309506048\",\n\
+        \"install_status\" : \"1\",\n\
+        \"media_type\" : \"fixed\",\n\
+        \"mount_point\" : \"/u02\",\n\
+        \"name\" : \"/dev/xvdh\",\n\
+        \"type\" : \"local\",\n\
+        \"free_space_bytes\" : \"250641338368\",\n\
+        \"sys_class_name\" : \"cmdb_ci_file_system\",\n\
+        \"capacity\" : \"17%\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_file_system\",\n\
+      \"values\" : {\n\
+        \"file_system\" : \"ext4\",\n\
+        \"size_bytes\" : \"21003628544\",\n\
+        \"volume_id\" : \"/dev/mapper/VGExaDb-LVDbOra1\",\n\
+        \"size\" : \"20511356\",\n\
+        \"install_status\" : \"1\",\n\
+        \"media_type\" : \"fixed\",\n\
+        \"mount_point\" : \"/u01\",\n\
+        \"name\" : \"/dev/mapper/VGExaDb-LVDbOra1\",\n\
+        \"type\" : \"local\",\n\
+        \"free_space_bytes\" : \"10694615040\",\n\
+        \"sys_class_name\" : \"cmdb_ci_file_system\",\n\
+        \"capacity\" : \"47%\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_file_system\",\n\
+      \"values\" : {\n\
+        \"file_system\" : \"ext4\",\n\
+        \"size_bytes\" : \"52710469632\",\n\
+        \"volume_id\" : \"/dev/xvdb\",\n\
+        \"size\" : \"51475068\",\n\
+        \"install_status\" : \"1\",\n\
+        \"media_type\" : \"fixed\",\n\
+        \"mount_point\" : \"/u01/app/oracle\",\n\
+        \"name\" : \"/dev/xvdb\",\n\
+        \"type\" : \"local\",\n\
+        \"free_space_bytes\" : \"36477444096\",\n\
+        \"sys_class_name\" : \"cmdb_ci_file_system\",\n\
+        \"capacity\" : \"28%\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_file_system\",\n\
+      \"values\" : {\n\
+        \"file_system\" : \"acfs\",\n\
+        \"size_bytes\" : \"429496729600\",\n\
+        \"volume_id\" : \"/dev/asm/acfsvol01-184\",\n\
+        \"size\" : \"419430400\",\n\
+        \"install_status\" : \"1\",\n\
+        \"media_type\" : \"fixed\",\n\
+        \"mount_point\" : \"/acfs01\",\n\
+        \"name\" : \"/dev/asm/acfsvol01-184\",\n\
+        \"type\" : \"local\",\n\
+        \"free_space_bytes\" : \"334192660480\",\n\
+        \"sys_class_name\" : \"cmdb_ci_file_system\",\n\
+        \"capacity\" : \"23%\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_file_system\",\n\
+      \"values\" : {\n\
+        \"file_system\" : \"acfs\",\n\
+        \"size_bytes\" : \"21474836480\",\n\
+        \"volume_id\" : \"/dev/asm/acfsvol02-184\",\n\
+        \"size\" : \"20971520\",\n\
+        \"install_status\" : \"1\",\n\
+        \"media_type\" : \"fixed\",\n\
+        \"mount_point\" : \"/oralog\",\n\
+        \"name\" : \"/dev/asm/acfsvol02-184\",\n\
+        \"type\" : \"local\",\n\
+        \"free_space_bytes\" : \"11097497600\",\n\
+        \"sys_class_name\" : \"cmdb_ci_file_system\",\n\
+        \"capacity\" : \"49%\"\n\
+      }\n\
+    }, {\n\
+      \"className\" : \"cmdb_ci_nas_file_system\",\n\
+      \"values\" : {\n\
+        \"size_bytes\" : \"4398046511104\",\n\
+        \"volume_id\" : \"nas72-appp-02.societe.mma.fr:/export_exacc\",\n\
+        \"mount_point\" : \"/NAS_export\",\n\
+        \"type\" : \"nfs\",\n\
+        \"nas_path\" : \"/export_exacc\",\n\
+        \"sys_class_name\" : \"cmdb_ci_nas_file_system\",\n\
+        \"capacity\" : \"16%\",\n\
+        \"nas_ip_address\" : \"nas72-appp-02.societe.mma.fr\",\n\
+        \"file_system\" : \"nfs4\",\n\
+        \"nas_hostname\" : \"nas72-appp-02.societe.mma.fr\",\n\
+        \"size\" : \"4294967296\",\n\
+        \"install_status\" : \"1\",\n\
+        \"media_type\" : \"network\",\n\
+        \"name\" : \"nas72-appp-02.societe.mma.fr:/export_exacc\",\n\
+        \"nas_protocol\" : \"nfs4\",\n\
+        \"free_space_bytes\" : \"3723397234688\"\n\
+      }\n\
+    } ],\n\
+    \"relations\" : [ {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 40\n\
+    }, {\n\
+      \"type\" : \"Hosted on::Hosts\",\n\
+      \"parent\" : 5,\n\
+      \"child\" : 0\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 11\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 12\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 13\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 14\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 15\n\
+    }, {\n\
+      \"type\" : \"Owns::Owned by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 26\n\
+    }, {\n\
+      \"type\" : \"Owns::Owned by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 27\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 33\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 34\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 35\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 36\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 37\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 38\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 39\n\
+    }, {\n\
+      \"type\" : \"Cluster of::Cluster\",\n\
+      \"parent\" : 5,\n\
+      \"child\" : 16\n\
+    }, {\n\
+      \"type\" : \"Cluster of::Cluster\",\n\
+      \"parent\" : 6,\n\
+      \"child\" : 16\n\
+    }, {\n\
+      \"type\" : \"Cluster of::Cluster\",\n\
+      \"parent\" : 7,\n\
+      \"child\" : 16\n\
+    }, {\n\
+      \"type\" : \"Cluster of::Cluster\",\n\
+      \"parent\" : 8,\n\
+      \"child\" : 16\n\
+    }, {\n\
+      \"type\" : \"Provides::Provided by\",\n\
+      \"parent\" : 14,\n\
+      \"child\" : 33\n\
+    }, {\n\
+      \"type\" : \"Provides::Provided by\",\n\
+      \"parent\" : 15,\n\
+      \"child\" : 36\n\
+    }, {\n\
+      \"type\" : \"Uses::Used by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 21\n\
+    }, {\n\
+      \"type\" : \"Uses::Used by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 22\n\
+    }, {\n\
+      \"type\" : \"Uses::Used by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 23\n\
+    }, {\n\
+      \"type\" : \"Uses::Used by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 24\n\
+    }, {\n\
+      \"type\" : \"Hosted on::Hosts\",\n\
+      \"parent\" : 16,\n\
+      \"child\" : 0\n\
+    }, {\n\
+      \"type\" : \"Owns::Owned by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 17\n\
+    }, {\n\
+      \"type\" : \"Owns::Owned by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 18\n\
+    }, {\n\
+      \"type\" : \"Owns::Owned by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 19\n\
+    }, {\n\
+      \"type\" : \"Owns::Owned by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 20\n\
+    }, {\n\
+      \"type\" : \"Owns::Owned by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 1\n\
+    }, {\n\
+      \"type\" : \"Owns::Owned by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 2\n\
+    }, {\n\
+      \"type\" : \"Owns::Owned by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 3\n\
+    }, {\n\
+      \"type\" : \"Owns::Owned by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 4\n\
+    }, {\n\
+      \"type\" : \"Uses::Used by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 25\n\
+    }, {\n\
+      \"type\" : \"Uses::Used by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 9\n\
+    }, {\n\
+      \"type\" : \"Uses::Used by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 10\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 28\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 29\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 30\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 31\n\
+    }, {\n\
+      \"type\" : \"Contains::Contained by\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 32\n\
+    } ],\n\
+    \"references\" : [ {\n\
+      \"referenceField\" : \"computer\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 11\n\
+    }, {\n\
+      \"referenceField\" : \"computer\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 12\n\
+    }, {\n\
+      \"referenceField\" : \"computer\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 13\n\
+    }, {\n\
+      \"referenceField\" : \"computer\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 14\n\
+    }, {\n\
+      \"referenceField\" : \"computer\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 15\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 1\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 2\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 3\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 4\n\
+    }, {\n\
+      \"referenceField\" : \"provided_by\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 28,\n\
+      \"child\" : 11\n\
+    }, {\n\
+      \"referenceField\" : \"provided_by\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 29,\n\
+      \"child\" : 12\n\
+    }, {\n\
+      \"referenceField\" : \"provided_by\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 30,\n\
+      \"child\" : 13\n\
+    }, {\n\
+      \"referenceField\" : \"provided_by\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 31,\n\
+      \"child\" : 14\n\
+    }, {\n\
+      \"referenceField\" : \"provided_by\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 32,\n\
+      \"child\" : 15\n\
+    }, {\n\
+      \"referenceField\" : \"server\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 5,\n\
+      \"child\" : 0\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 21\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 22\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 23\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 24\n\
+    }, {\n\
+      \"referenceField\" : \"router_interface\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 21,\n\
+      \"child\" : 10\n\
+    }, {\n\
+      \"referenceField\" : \"router_interface\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 22,\n\
+      \"child\" : 9\n\
+    }, {\n\
+      \"referenceField\" : \"nic\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 1,\n\
+      \"child\" : 26\n\
+    }, {\n\
+      \"referenceField\" : \"nic\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 2,\n\
+      \"child\" : 26\n\
+    }, {\n\
+      \"referenceField\" : \"nic\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 3,\n\
+      \"child\" : 26\n\
+    }, {\n\
+      \"referenceField\" : \"nic\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 4,\n\
+      \"child\" : 27\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 9\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 10\n\
+    }, {\n\
+      \"referenceField\" : \"hosted_by\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 28\n\
+    }, {\n\
+      \"referenceField\" : \"hosted_by\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 29\n\
+    }, {\n\
+      \"referenceField\" : \"hosted_by\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 30\n\
+    }, {\n\
+      \"referenceField\" : \"hosted_by\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 31\n\
+    }, {\n\
+      \"referenceField\" : \"hosted_by\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 32\n\
+    }, {\n\
+      \"referenceField\" : \"cluster\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 5,\n\
+      \"child\" : 16\n\
+    }, {\n\
+      \"referenceField\" : \"cluster\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 6,\n\
+      \"child\" : 16\n\
+    }, {\n\
+      \"referenceField\" : \"cluster\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 7,\n\
+      \"child\" : 16\n\
+    }, {\n\
+      \"referenceField\" : \"cluster\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 8,\n\
+      \"child\" : 16\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 26\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 27\n\
+    }, {\n\
+      \"referenceField\" : \"provided_by\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 14,\n\
+      \"child\" : 33\n\
+    }, {\n\
+      \"referenceField\" : \"provided_by\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 15,\n\
+      \"child\" : 36\n\
+    }, {\n\
+      \"referenceField\" : \"route_interface\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 25,\n\
+      \"child\" : 22\n\
+    }, {\n\
+      \"referenceField\" : \"computer\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 33\n\
+    }, {\n\
+      \"referenceField\" : \"computer\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 34\n\
+    }, {\n\
+      \"referenceField\" : \"computer\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 35\n\
+    }, {\n\
+      \"referenceField\" : \"computer\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 36\n\
+    }, {\n\
+      \"referenceField\" : \"computer\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 37\n\
+    }, {\n\
+      \"referenceField\" : \"computer\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 38\n\
+    }, {\n\
+      \"referenceField\" : \"computer\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 39\n\
+    }, {\n\
+      \"referenceField\" : \"computer\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 40\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"childToParent\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 25\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 17\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 18\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 19\n\
+    }, {\n\
+      \"referenceField\" : \"cmdb_ci\",\n\
+      \"referenceDirection\" : \"parentToChild\",\n\
+      \"parent\" : 0,\n\
+      \"child\" : 20\n\
+    } ],\n\
+    \"mainCiType\" : \"cmdb_ci_linux_server\"\n\
+   }";
+	process();
+}
+
+
+// download images
+function savePng() {
+var blob = cy.png({output: 'blob'});//.substring(content.indexOf(b64key) + b64key.length);
+console.log(blob);
+//var b64 = cy.png().substring( cy.png().indexOf(b64key) + b64key.length );
+//var imgBlob = new Blob(b64);
+//console.log(imgBlob);
+createDownload(blob, "filename", "png");
+}
+
+// When the blob is complete, make an anchor tag for it and use the tag to initiate a download
+// Works in:
+// * Chrome
+// * IE11, Edge
+// * Firefox
+function createDownload(blob, name, suffix) {
+    var url = window.URL.createObjectURL(blob);
+    var filename = name + "_" + Date.now() + "." + suffix;
+
+    var a = document.createElement("a");
+    a.style = "display: none";
+    a.href = url;
+    a.download = filename;
+
+    // IE 11
+    if (window.navigator.msSaveBlob !== undefined) {
+        window.navigator.msSaveBlob(blob, filename);
+        return;
+    }
+
+    document.body.appendChild(a);
+    requestAnimationFrame(function() {
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    });
+}]]></client_script>
+        <description/>
+        <direct>false</direct>
+        <endpoint>x_snc_graph_BCRCMDBExplorer.do</endpoint>
+        <html><![CDATA[<?xml version="1.0" encoding="utf-8" ?>
+<j:jelly trim="false" xmlns:j="jelly:core" xmlns:g="glide" xmlns:j2="null" xmlns:g2="null">
+	<script src  = "https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.19.1/cytoscape.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/cytoscape-node-html-label@1.2.2/dist/cytoscape-node-html-label.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.3.2/cytoscape-dagre.min.js"></script>	
+	<link href="https://cdn.jsdelivr.net/npm/cytoscape-navigator@2.0.1/cytoscape.js-navigator.css" rel="stylesheet" type="text/css"/>
+	<script src="https://cdn.jsdelivr.net/npm/cytoscape-navigator@2.0.1/cytoscape-navigator.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/cytoscape-expand-collapse@4.1.0/cytoscape-expand-collapse.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/cytoscape-context-menus@4.1.0/cytoscape-context-menus.js"></script>
+	<link href="https://cdn.jsdelivr.net/npm/cytoscape-context-menus@4.1.0/cytoscape-context-menus.css" rel="stylesheet" type="text/css"/>
+		
+	<!--	<link href="ff723113db0f3c1096222b24ca96190c.cssdbx" rel="stylesheet" type="text/css"></link>-->
+	<style type="text/css">
+	h1{color:#000000; font-size: 30px; font-weight: bold; letter-spacing: -1px; line-height: 1; text-align: center;}
+		
+		#input{
+			border-radius: 		25px;
+			border-color: 		black;
+			outline-width: 		0;
+			font-size: 			15px;
+			background-color: 	#ffffff;
+			font-family: 		Arial;
+			height:             90%;
+  			width: 				14%;
+  			margin: 			auto;	
+		}
+	
+		input::placeholder {
+			border-radius: 		25px;
+			border-color: 		black;
+			font-size: 			1rem;
+			font-family: 		Arial;
+			text-align: 		center;
+			width: 				400px;
+		}
+		
+		.labelh{
+			font-size: 		2rem;
+			font-family: 	Times;
+			margin-left:	40px;
+			width: 			400px;
+		}
+		
+		#inputarea, #selectedarea {
+			min-height: 300px;
+		}
+		
+		#toolbar {
+			height: 32px;
+          	width: 100%;
+            height: 45px;
+			margin: auto;
+			background-color: #ffffff;	
+			border: 1px solid black;
+        }
+	
+.icon-Server {
+  background-color: black;
+  mask-image: url("./images/app.ngbsm/server.svg");
+  -webkit-mask-image: url("./images/app.ngbsm/server.svg");
+}
+		
+		@font-face {
+
+}
+
+@font-face {
+}
+
+@font-face {
+}
+
+body {
+
+}
+
+#cy {
+  width: 100%;
+  height: 90%;
+  position: relative;
+  margin: auto;
+  background: #fafafa;
+  background-image: radial-gradient(#bebebe 1px, transparent 0);
+  background-size: 18px 18px;
+}
+		
+.search_bar {
+  position: absolute;
+  top: 40px;
+  left: 0;
+}
+
+.search_bar_div {
+    position: absolute;
+	margin-top: 10px;
+	top: 30px;
+}
+
+		
+		
+.icon {
+  mask-size: cover;
+  -webkit-mask-size: cover;
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+}
+
+.element {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 20px;
+z-index: 300;
+}
+
+.display_info {
+  width: 100px;
+  position: absolute;
+  margin-left: 100px;
+  margin-top: 10px;
+  border: 3px solid #fff;
+  box-shadow: 0 0 1px 0 rgb(0, 0, 0, 0.12), 0 1px 1px 0 rgb(0, 0, 0, 0.12);
+  background: #fff;
+  font-size: 8px;
+  z-index: 500;
+}		
+		
+.element-severity_badge {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin-left: -36px;
+  margin-top: -4px;
+  border: 3px solid #fff;
+  box-shadow: 0 0 1px 0 rgb(0, 0, 0, 0.12), 0 1px 1px 0 rgb(0, 0, 0, 0.12);
+  background: #fff;
+  z-index: 999;
+}
+
+.element-severity_badge > .icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  top: -2px;
+  right: 2px;
+  position: relative;
+}
+
+.element-pm_badge {
+  position: absolute;
+  width: 32px;
+  height: 16px;
+  border-radius: 2px;
+  margin-left: 46px;
+  margin-top: 34px;
+  background: #048375;
+  z-index: 999;
+  display: inline-flex;
+}
+
+.element-pm_badge > .icon {
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+  margin-top: 1px;
+  display: block;
+  background: #fff;
+}
+
+.element-pm_badge2 {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin-left: -36px;
+  margin-top: 30px;
+  border: 3px solid #fff;
+  box-shadow: 0 0 1px 0 rgb(0, 0, 0, 0.12), 0 1px 1px 0 rgb(0, 0, 0, 0.12);
+  background: #fff;
+  z-index: 999;
+}
+
+.element-pm_badge2 > .icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  top: -2px;
+  right: 2px;
+  position: relative;
+  background: #048375;
+}
+
+.element-pm_badge > span {
+  font-size: 10px;
+  line-height: 16px;
+  vertical-align: middle;
+  color: #fff;
+}
+
+.element-graphic {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 50%;
+  width: 38px;
+  height: 38px;
+  border: 4px solid rgb(255, 255, 255, 1);
+  box-shadow: 0 0 1px 0 rgb(0, 0, 0, 0.12), 0 1px 1px 0 rgb(0, 0, 0, 0.24);
+}
+
+/*box-shadow: 0 0 0px 2px rgb(227, 73, 76, 1);*/
+
+.element-graphic.hover > .overlay {
+  width: 38px;
+  height: 38px;
+  position: absolute;
+  background-color: #000000;
+  opacity: 0.3;
+  border-radius: 50%;
+}
+
+.element-graphic.selected {
+  box-shadow: 0 0 0px 2px #5da4ef;
+  border: 4px solid rgb(255, 255, 255, 1);
+}
+
+.element-label {
+  font-size: 10px;
+  color: rgb(0, 0, 0, 0.87);
+  max-width: 75px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: capitalize;
+  white-space: nowrap;
+  padding-top: 4px;
+  z-index: 400;
+}
+
+.group {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+}
+
+.group.hide {
+  display: none;
+}
+
+.group.show {
+  display: inline-flex;
+}
+
+.group-graphic {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-radius: 3px;
+  width: 56px;
+  height: 56px;
+  background: #eeeeee;
+  margin-top: 16px;
+  border: 1px solid #dcdcdc;
+}
+
+.group-graphic > .icon {
+  background: #9e9e9e;
+}
+
+.group-graphic.hover > .overlay {
+  width: 56px;
+  height: 56px;
+  position: absolute;
+  background-color: #000;
+  opacity: 0.3;
+  border-radius: 3px;
+  border: 1px solid rgb(0, 0, 0, 0.3);
+}
+
+.group-graphic.selected {
+  box-shadow: 0 0 0px 2px #5da4ef;
+  border: 1px solid rgb(255, 255, 255, 1);
+}
+
+.group-label {
+  font-size: 10px;
+  max-width: 75px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #757575;
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+
+/* ICONS */
+.icon-equipment_ne {
+  mask-image: url(http://crestey.fr/tmp/969v6/imgs/imgs/ic_equipment_ne.svg);
+  -webkit-mask-image: url(http://crestey.fr/tmp/969v6/imgs/imgs/ic_equipment_ne.svg);
+}
+
+.icon-server {
+  mask-image: url(http://crestey.fr/tmp/969v6/imgs/imgs/ic_server.svg);
+  -webkit-mask-image: url(http://crestey.fr/tmp/969v6/imgs/imgs/ic_server.svg);
+}
+
+.icon-NetworkService {
+  mask-image: url(http://crestey.fr/tmp/969v6/imgs/imgs/ic_service.svg);
+  -webkit-mask-image: url(http://crestey.fr/tmp/969v6/imgs/imgs/ic_service.svg);
+}
+
+.icon-TelcoCloudVirtualDevice {
+  mask-image: url(http://crestey.fr/tmp/969v6/imgs/imgs/ic_device.svg);
+  -webkit-mask-image: url(http://crestey.fr/tmp/969v6/imgs/imgs/ic_device.svg);
+}
+
+.icon-TelcoCloudPhysicalDevice {
+  mask-image: url(http://crestey.fr/tmp/969v6/imgs/ic_router_circle.svg);
+  -webkit-mask-image: url(http://crestey.fr/tmp/969v6/imgs/ic_router_circle.svg);
+}
+
+.icon-VNFComponent,
+.icon-VNF {
+  mask-image: url(./ic_virtual_network_function.svg);
+  -webkit-mask-image: url(./ic_virtual_network_function.svg);
+}
+
+.icon-group {
+  mask-image: url(./ic_group.svg);
+  -webkit-mask-image: url(./ic_group.svg);
+}
+
+.icon-pm {
+  mask-image: url(./ic_policy.svg);
+  -webkit-mask-image: url(./ic_policy.svg);
+}
+
+/** ALARM SEVERITY **/
+.icon-indeterminate {
+  background: url(http://crestey.fr/tmp/969v6/imgs/imgs/ic_indeterminate_kpi.svg);
+}
+
+.icon-cleared {
+  background: url(http://crestey.fr/tmp/969v6/imgs/ic_cleared_kpi.svg);
+}
+
+.icon-warning {
+  background: url(http://crestey.fr/tmp/969v6/imgs/ic_warning_kpi.svg);
+}
+
+.icon-minor {
+  background: url(http://crestey.fr/tmp/969v6/imgs/ic_minor_kpi.svg);
+}
+
+.icon-major {
+  background: url(http://crestey.fr/tmp/969v6/imgs/ic_major_kpi.svg);
+}
+
+.icon-critical {
+  background: url(http://crestey.fr/tmp/969v6/imgs/ic_critical_kpi.svg);
+}
+
+/** OPERATION STATE **/
+.serviceOperationalState-Active,
+.administrativeState-Activated,
+.operationalState-Working,
+.resourceLifecycleState-Operating,
+.resourceUsageState-Assigned,
+.powerState-PowerUp {
+  background: #c1e7e3;
+}
+.serviceOperationalState-Active .icon,
+.administrativeState-Activated .icon,
+.operationalState-Working .icon,
+.resourceLifecycleState-Operating .icon,
+.resourceUsageState-Assigned .icon,
+.powerState-PowerUp .icon {
+  background: #048375;
+}
+
+.serviceOperationalState-Terminated,
+.administrativeState-NotApplicable,
+.resourceLifecycleState-Retiring,
+.resourceUsageState-NotAvailable {
+  background: #bdbdbd;
+}
+.serviceOperationalState-Terminated .icon,
+.administrativeState-NotApplicable .icon,
+.resourceLifecycleState-Retiring .icon,
+.resourceUsageState-NotAvailable .icon {
+  background: rgb(0, 0, 0, 0.7);
+}
+
+.serviceOperationalState-Inactive,
+.administrativeState-Deactivated,
+.operationalState-notWorking,
+.powerState-PowerDown {
+  background: #e4afb1;
+}
+.serviceOperationalState-Inactive .icon,
+.administrativeState-Deactivated .icon,
+.operationalState-notWorking .icon,
+.powerState-PowerDown .icon {
+  background: #8e0022;
+}
+
+.serviceOperationalState-Unknown,
+.administrativeState-Unknown,
+.operationalState-Unknown,
+.resourceLifecycleState-Unknown,
+.resourceUsageState-Unknown,
+.powerState-Unknown {
+  background: #9cbfd8;
+}
+.serviceOperationalState-Unknown .icon,
+.administrativeState-Unknown .icon,
+.operationalState-Unknown .icon,
+.resourceLifecycleState-Unknown .icon,
+.resourceUsageState-Unknown .icon,
+.powerState-Unknown .icon {
+  background: #012345;
+}
+
+.serviceOperationalState-Designed,
+.resourceLifecycleState-Installing,
+.resourceUsageState-Reserved {
+  background: #ffdf81;
+}
+.serviceOperationalState-Designed .icon,
+.resourceLifecycleState-Installing .icon,
+.resourceUsageState-Reserved .icon {
+  background: #8d6900;
+}
+
+.resourceLifecycleState-Installing,
+.resourceUsageState-Reserved {
+  background: #d9b5ed;
+}
+.resourceLifecycleState-Installing .icon,
+.resourceUsageState-Reserved .icon {
+  background: #7e06c4;
+}
+
+.node-hidden {
+  display: none;
+}
+
+/** CONTEXTUAL MENU **/
+.custom-menu-item {
+  border: none !important;
+  height: 32px !important;
+  width: 170px !important;
+  padding-left: 24px !important;
+  color: rgb(0, 0, 0, 0.87) !important;
+  background-color: #fafafa !important;
+  font-weight: normal !important;
+  font-size: 13px !important;
+  text-align: left !important;
+  box-shadow: none !important;
+}
+
+.custom-menu-item:hover {
+  background-color: #c8c8c8 !important;
+}
+
+.custom-context-menu {
+  border: none !important;
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+  background-color: #fafafa !important;
+  box-shadow: 0px 0px 8px 0px rgb(0, 0, 0, 0.12),
+    0px 8px 8px 0px rgb(0, 0, 0, 0.24) !important;
+}
+
+/*Ovveride Navigator border and background:*/
+.cytoscape-navigator {
+  border: 2px solid #bebebe !important;
+  background: white !important;
+  height: 25vh !important;
+  width: 25vw !important;
+  margin-bottom: 24px;
+  margin-right: 24px;
+}
+
+/*Add border to View container:*/
+.cytoscape-navigator .cytoscape-navigatorView {
+  border: 2px solid #124191;
+  background: transparent;
+}
+
+/*Ovveride overlay container when mouse is over Navigator*/
+.cytoscape-navigator:hover .cytoscape-navigatorOverlay {
+  border: 2px solid #124191;
+  background: transparent;
+}
+
+/*Ovveride view's container when mouse is over view*/
+.cytoscape-navigator.mouseover-view .cytoscape-navigatorView {
+  background-color: rgba(18, 65, 145, 0.3);
+}
+
+	</style>	
+<div style="display: flex;">
+      <div style="flex: 50%;">
+        <b id="collapseAll" style="cursor: pointer; color: darkred;"
+          >Collapse all</b
+        >
+        |
+        <b id="expandAll" style="cursor: pointer; color: darkslateblue;"
+          >Expand all</b
+        >
+      </div>
+      <div style="flex: 50%; text-align: right;">
+        <b id="adminView" style="cursor: pointer; color: #124191;"
+          >Administrative</b
+        >
+        |
+        <b id="opView" style="cursor: pointer; color: #124191;">Operational</b>
+        |
+        <b id="lifecycleView" style="cursor: pointer; color: #124191;"
+          >Lifecycle</b
+        >
+        |
+        <b id="usageView" style="cursor: pointer; color: #124191;">Usage</b>
+      </div>
+    </div>
+	<div id="cy">
+		<div id="cy2"></div>
+	</div>
+	<div class="search_bar_div"><span class=""><input value="Id" id="objid"></input><button onclick="searchNode()" id='smile' style ='left: 76%; padding: 8px 12px;font-size: 12px;'><i class="icon-image" style ='margin-right:1em;'></i>Search Object</button></span></div>
+	<div><button onclick="loadtestpayLoad0()" id='smile' style ='left: 76%; padding: 8px 12px;font-size: 12px;'><i class="icon-image" style ='margin-right:1em;'></i>Sample Payload 0</button><button onclick="loadtestpayLoad1()" id='smile' style ='left: 76%; padding: 8px 12px;font-size: 12px;'><i class="icon-image" style ='margin-right:1em;'></i>Sample Payload 1</button></div>
+				<div>
+				<h1 class = "display3">CMDB Explorer</h1>
+				<table>
+					<tr height="320px">
+						<td width="25%">
+							<b>JSON Payload</b><BR/>
+							<textarea class="inputarea" rows="1" cols="50" id="inputarea">JSON payload or ECC XML Payload</textarea>
+						</td>
+						<td width="25%">
+							<b>Selected Data</b><BR/>
+							<textarea class="inputarea" rows="1" cols="50" id="selectedarea">Please select an object</textarea>
+						</td>
+						<td width="25%">
+							<b>Classes :</b><BR/>
+							<div id="options"></div>
+						</td>
+						<td width="25%" height="300px">
+							<table  height="300px">
+								<tr><td><center><button onclick="reset_button()" id='smile' style ='left: 76%; padding: 8px 12px;font-size: 12px;'><i class="icon-image" style ='margin-right:1em;'></i>Reset Data</button></center></td></tr>
+								<tr><td><center><button onclick="process_button()" id='smile' style ='left: 76%; padding: 8px 12px;font-size: 12px;'><i class="icon-image" style ='margin-right:1em;'></i>Refresh</button></center></td></tr>
+								<tr><td><center><button onclick="stabilize()" id='smile' style ='left: 76%; padding: 8px 12px;font-size: 12px;'><i class="icon-image" style ='margin-right:1em;'></i>Stabilize Graph</button></center></td></tr>
+								<tr><td><center><select id="mode" onChange="process()"><option value="graphical" select="true">graphical</option><option value="text">text</option></select></center></td></tr>
+								<tr><td><center><button onclick="reload_with_page_info()" id='smile' style ='left: 76%; padding: 8px 12px;font-size: 12px;'><i class="icon-image" style ='margin-right:1em;'></i>Reload with Page Info</button></center><BR/></td></tr>
+								<tr><td><center><input value="Id" id="objid"></input><button onclick="searchNode()" id='smile' style ='left: 76%; padding: 8px 12px;font-size: 12px;'><i class="icon-image" style ='margin-right:1em;'></i>Search Object</button></center></td></tr>
+								<tr><td><center>
+									<button onclick="loadtestpayLoad0()" id='smile' style ='left: 76%; padding: 8px 12px;font-size: 12px;'><i class="icon-image" style ='margin-right:1em;'></i>Sample Payload 0</button><button onclick="loadtestpayLoad1()" id='smile' style ='left: 76%; padding: 8px 12px;font-size: 12px;'><i class="icon-image" style ='margin-right:1em;'></i>Sample Payload 1</button>
+									<button onclick="loadtestpayLoad2()" id='smile' style ='left: 76%; padding: 8px 12px;font-size: 12px;'><i class="icon-image" style ='margin-right:1em;'></i>Sample Payload 2</button><button onclick="savePng()" id='smile' style ='left: 76%; padding: 8px 12px;font-size: 12px;'><i class="icon-image" style ='margin-right:1em;'></i>Save PNG</button>
+									</center></td></tr>
+								<tr><td><center><div id="message"></div></center></td></tr>
+							</table>
+						</td>
+					</tr>
+				</table>
+		</div>
+</j:jelly>]]></html>
+        <name>BCRCMDBExplorer</name>
+        <processing_script/>
+        <sys_class_name>sys_ui_page</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2022-03-25 13:45:17</sys_created_on>
+        <sys_id>2eac5604db260510bcced03cd396197c</sys_id>
+        <sys_mod_count>2</sys_mod_count>
+        <sys_name>BCRCMDBExplorer</sys_name>
+        <sys_package display_value="Graph" source="x_snc_graph">e34c9ec0db260510bcced03cd39619ef</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="Graph">e34c9ec0db260510bcced03cd39619ef</sys_scope>
+        <sys_update_name>sys_ui_page_2eac5604db260510bcced03cd396197c</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2022-03-25 13:52:16</sys_updated_on>
+    </sys_ui_page>
+</record_update>

@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>package_private</access>
+        <active>true</active>
+        <api_name>x_snc_graph.BCRCMDBExplorerHelper</api_name>
+        <caller_access/>
+        <client_callable>true</client_callable>
+        <description/>
+        <name>BCRCMDBExplorerHelper</name>
+        <script><![CDATA[var BCRCMDBExplorerHelperHelper = Class.create();
+BCRCMDBExplorerHelperHelper.prototype = Object.extendsObject(global.AbstractAjaxProcessor, {
+	
+/*	maxCIsNumber: 1000,
+	data = {},
+	dataNb = 0,*/
+	
+	getIconsList: function() {
+        var iconsImages = {};
+        var grIconList = new GlideRecord("ngbsm_ci_type_icon");
+        grIconList.query();
+        while (grIconList.next()) {
+			  var grIcon = new GlideRecord("ngbsm_ci_icons");
+			  if (grIcon.get(grIconList.getValue("icon"))) {
+				  iconsImages[grIconList.getValue("ci_type")] = grIcon.getValue("url");
+			  }
+        }
+        var json = new JSON();
+        //gs.log("returning " + json.encode(iconsImages));
+		return json.encode(iconsImages);
+    },
+	
+	getCI: function() {
+		this.data = {};
+		this.data.items = [];
+		this.data.relations = [];
+		this.data.references = [];
+		this.maxCIsNumber= 1000;
+		this.dataNb = 0;
+		this.CIIDs = {};
+		this.RelationIDs = {};
+		this.security = 0;
+
+		x_snc_devtools.Debug('BCRCMDBExplorerHelperHelper.getCI');
+		gs.log("called");
+		var ciIDList = (this.getParameter('sysparm_sys_id')).split(",");
+		var levels = this.getParameter('sysparm_levels');
+		// attributesMode 
+		// minimal : name + display label
+		// full : aall attributes
+		this.attributesMode = this.getParameter('sysparm_attributes_mode');
+		if (this.attributesMode == null) {
+			this.attributesMode = "minimal";
+		}
+		this.includeReferences = (this.getParameter('sysparm_attributes_mode') == "true");
+		/*if (this.includeReferences == null) {
+			this.includeReferences = false;
+		}*/
+
+		for (var sysID in ciIDList) {
+			this._addToCIList(ciIDList[sysID], levels);
+		}
+		
+		
+		var json = new JSON();
+        gs.log("returning " + json.encode(this.data));
+		if (this.security > 9000) {
+			return "security reached";
+		}
+		return json.encode(this.data);
+	},
+
+	_addToCIList: function(ciID, levels) {
+		var grCI = new GlideRecord("cmdb_ci");
+		if (levels > 0) {
+				if (grCI.get(ciID)) {
+				gs.log("found CI");
+				this._addToCIData(grCI);
+
+				var grRelCI = new GlideRecord("cmdb_rel_ci");
+				grRelCI.addQuery("child", ciID);
+				grRelCI.addNotNullQuery("parent");
+				grRelCI.query();
+				while (grRelCI.next() && this.security++ < 10000) {
+					this._addToCIDataRelation(grRelCI, "child", levels);
+				}
+		
+				var grRelCI2 = new GlideRecord("cmdb_rel_ci");
+				grRelCI2.addQuery("parent", ciID);
+				grRelCI2.addNotNullQuery("child");
+				grRelCI2.query();
+				while (grRelCI2.next() && this.security++ < 10000) {
+					this._addToCIDataRelation(grRelCI2, "parent", levels);
+				}
+
+				if (this.includeReferences) {
+					gs.log("saerching ref for  " + grCI.getValue("sys_id"));
+
+					var references = this.findIncomingReferences(grCI.getValue("sys_id"), grCI.getValue("sys_class_name"));
+					gs.log("BCR found refs : " + references);
+					for (var referenceSourceID in references) {
+						gs.log("BCR found ref : " + referenceSourceID);
+						var grCI2 = new GlideRecord("cmdb_ci");
+						if (grCI2.get(referenceSourceID)) {
+							gs.log("BCR found ref CI : " + referenceSourceID);
+							var recordRef = {};
+							recordRef["parent"] = this._getCIID(referenceSourceID);
+							recordRef["parent_id"] = referenceSourceID;
+							recordRef["child"] = this._getCIID(grCI.getValue("sys_id"));
+							recordRef["child_id"] = grCI.getValue("sys_id");
+							this.data.relations.push(recordRef);
+						}
+						
+					}
+				}
+			}
+		};
+
+		
+
+	},
+
+	_addToCIData: function(grCI) {
+		if (this.CIIDs[grCI.getValue("sys_id")] == undefined) {
+			var record = {};
+			record["className"] = grCI.getValue("sys_class_name");
+			record["values"] = {};
+			if (this.attributesMode == "minimal") {
+				record["values"]["sys_id"] = grCI.getValue("sys_id");
+				record["values"]["_display_label"] = this._getCIDisplayLabel(grCI);
+				record["values"]["_display_info"] = this._getCIDisplayInfo(grCI);				
+			} else {
+				record["values"]["sys_id"] = grCI.getValue("sys_id");
+				record["values"]["_display_label"] = this._getCIDisplayLabel(grCI);
+				record["values"]["_display_info"] = this._getCIDisplayInfo(grCI);				
+				// mode = full
+				for (var e in grCI)
+				{
+					record["values"][e] = grCI.getValue(e);
+				}				
+			}
+			record["id"] = this.dataNb;
+			this.CIIDs[grCI.getValue("sys_id")] = this.dataNb;
+			this.data.items.push(record);
+			this.dataNb++;
+		}	
+	},
+
+	_addToCIDataRelation: function(grRelCI, source, levels) {
+		if (this.RelationIDs[grRelCI.getValue("sys_id")] == undefined) {
+			if (source == "child") {
+				var grCI = new GlideRecord("cmdb_ci");
+				if (grCI.get(grRelCI.getValue("parent"))) {
+					this._addToCIData(grCI);
+				}
+			} else {
+				var grCI = new GlideRecord("cmdb_ci");
+				if (grCI.get(grRelCI.getValue("child"))) {
+					this._addToCIData(grCI);
+				}
+			}	
+			var recordRel = {};
+			recordRel["type"] = grRelCI.getDisplayValue("type");
+			recordRel["parent"] = this._getCIID(grRelCI.getValue("parent"));
+			recordRel["parent_id"] = grRelCI.getValue("parent");
+			recordRel["sys_id"] = grRelCI.getValue("sys_id");
+			recordRel["child"] = this._getCIID(grRelCI.getValue("child"));
+			recordRel["child_id"] = grRelCI.getValue("child");
+			this.RelationIDs[grRelCI.getValue("sys_id")] = "Loaded";
+			this.data.relations.push(recordRel);
+			if (source == "child") {
+				this._addToCIList(grRelCI.getValue("parent"), levels - 1);
+			} else {
+				this._addToCIList(grRelCI.getValue("child"), levels - 1);
+			}
+		}
+		
+	},
+
+	_getCIID: function(sysID) {
+		return this.CIIDs[sysID];
+	},
+
+	_getCIDisplayLabel: function(grCI) {
+		if (grCI.getValue("sys_class_name") == "cmdb_ci_unix_server") {
+			return grCI.getValue("name");
+		} else {
+			return grCI.getValue("name");
+		}
+	},
+
+	_getCIDisplayInfo: function(grCI) {
+		if (grCI.getValue("sys_class_name") == "cmdb_ci_unix_server") {
+			var res = "";
+			res += "<b>CI Type</b>: " + grCI.getValue("sys_class_name") + "<BR/>";
+			res += "<b>asset_tag</b>: " + grCI.getValue("asset_tag") + "<BR/>";
+			res += "<b>install_date</b>: " + grCI.getValue("install_date");
+			return res;
+		} else {
+			var res = "";
+			res += "<b>CI Type</b>: " + grCI.getValue("sys_class_name") + "<BR/>";
+			res += "<b>asset_tag</b>: " + grCI.getValue("asset_tag") + "<BR/>";
+			res += "<b>install_date</b>: " + grCI.getValue("install_date");
+			return res;
+		}
+	},
+
+
+	findIncomingReferences: function(refRecordID, table_name) {
+		gs.log("hello");
+		var result = [];
+		var refTable = new TableUtils(table_name).getTables();
+		gs.include("j2js");
+		refTable = j2js(refTable).join();		
+		//Query dictionary table for reference, document_id, and condition fields
+		var dict = new GlideRecord('sys_dictionary');
+		dict.addQuery('reference', 'IN', refTable).addOrCondition('internal_type', 'document_id').addOrCondition('internal_type', 'conditions');
+		//Do not query audit and log fields
+		dict.addEncodedQuery("nameSTARTSWITHcmdb^ORnameSTARTSWITHu_cmdb");
+		dict.addQuery('name', '!=', 'cmdb_rel_ci');
+		dict.addQuery('name', '!=', 'cmdb_multisource_query_result');
+		dict.addQuery('name', '!=', 'cmdb_multisource_query_result_diff_record');
+		dict.addQuery('element', '!=', 'duplicate_of');
+	
+		dict.orderBy('name');
+		dict.orderBy('element');
+		dict.query();
+		while (dict.next()) {
+			var tblName = dict.name.toString();
+			// Skip tables used for Table Rotation
+			var gr = new GlideRecord("sys_table_rotation_schedule");
+			gr.addQuery("name.name", '!=', tblName);
+			gr.addQuery("table_name", tblName);
+			gr.query();
+			if (!gr.hasNext()) {
+				var refType = dict.internal_type;
+	
+				//Query each table for matching records
+				var rec = new GlideRecord(tblName);
+				if (refType == 'glide_list' || refType == 'conditions') {
+					rec.addQuery(dict.element, 'CONTAINS', refRecordID);
+				} else {
+					rec.addQuery(dict.element, refRecordID);
+				}
+				//gs.log("requesting " + dict.element + " on " + tblName);
+				rec.query();
+				if (rec.getRowCount() == 1) {
+					gs.log(' record found');
+				}
+				if (rec.getRowCount() > 0) {
+					//Display table/column info
+					gs.log('Table: ' + tblName + 'Column : ' + dict.element + '[' + dict.internal_type + ']' + ' href ' + dict.name + ' ' + rec.getRowCount());
+				}
+				while (rec.next()) {
+					result[rec.getValue("sys_id")] = rec.getValue("sys_id");
+				}
+			}
+		}
+		return result;
+	},
+
+
+    type: 'BCRCMDBExplorerHelperHelper'
+});]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2022-03-25 13:44:11</sys_created_on>
+        <sys_id>3f5c9204db260510bcced03cd3961933</sys_id>
+        <sys_mod_count>2</sys_mod_count>
+        <sys_name>BCRCMDBExplorerHelper</sys_name>
+        <sys_package display_value="Graph" source="x_snc_graph">e34c9ec0db260510bcced03cd39619ef</sys_package>
+        <sys_policy>read</sys_policy>
+        <sys_scope display_value="Graph">e34c9ec0db260510bcced03cd39619ef</sys_scope>
+        <sys_update_name>sys_script_include_3f5c9204db260510bcced03cd3961933</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2022-03-25 13:54:51</sys_updated_on>
+    </sys_script_include>
+</record_update>
